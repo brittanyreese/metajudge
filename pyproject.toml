@@ -48,3 +48,8 @@ pythonVersion = "3.11"
 [tool.pytest.ini_options]
 addopts = "-q --cov=metajudge --cov-report=term-missing"
 testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pandas-stubs>=3.0.3.260530",
+]
