@@ -58,3 +58,36 @@ def krippendorff_alpha(
         level=level,
         n_bootstrap=n_bootstrap,
     )
+
+
+@dataclass(frozen=True)
+class IccResult:
+    icc1: float
+    icck: float
+    n_targets: int
+    n_raters: int
+
+
+def icc(ratings: Ratings) -> IccResult:
+    wide = ratings.wide()
+    if bool(wide.isna().to_numpy().any()):
+        raise ValueError("ICC requires a complete matrix; missing cells found")
+    data = wide.to_numpy(dtype=float)  # targets x raters
+    n, k = data.shape
+
+    grand = float(data.mean())
+    row_means = data.mean(axis=1)
+    col_means = data.mean(axis=0)
+
+    ss_rows = k * float(np.sum((row_means - grand) ** 2))
+    ss_cols = n * float(np.sum((col_means - grand) ** 2))
+    ss_total = float(np.sum((data - grand) ** 2))
+    ss_error = ss_total - ss_rows - ss_cols
+
+    ms_rows = ss_rows / (n - 1)
+    ms_cols = ss_cols / (k - 1)
+    ms_error = ss_error / ((n - 1) * (k - 1))
+
+    icc1 = (ms_rows - ms_error) / (ms_rows + (k - 1) * ms_error + k * (ms_cols - ms_error) / n)
+    icck = (ms_rows - ms_error) / (ms_rows + (ms_cols - ms_error) / n)
+    return IccResult(icc1=float(icc1), icck=float(icck), n_targets=n, n_raters=k)
