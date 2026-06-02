@@ -32,3 +32,6 @@ htmlcov/
 # Data (keep the repo light; demo data is referenced, not vendored, unless small)
 data/raw/
 *.parquet
+
+# session scratch (datasets, analysis scripts)
+scratch/
