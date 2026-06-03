@@ -22,6 +22,10 @@ htmlcov/
 # Env / secrets
 .env
 .env.*
+.envrc
+
+# Private local agent context (canonical context is the tracked AGENTS.md)
+CLAUDE.md
 
 # OS / editor
 .DS_Store
