@@ -28,7 +28,7 @@ htmlcov/
 CLAUDE.md
 
 # OS / editor
-.DS_Store
+# .DS_Store is covered by the machine's global excludesfile, not committed here.
 *.swp
 .idea/
 .vscode/
