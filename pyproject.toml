@@ -1,6 +1,6 @@
 [project]
 name = "metajudge"
-version = "0.0.1"
+version = "0.1.0"
 description = "Audit an LLM judge/rubric instrument: reliability + DIF report card."
 readme = "README.md"
 requires-python = ">=3.11"

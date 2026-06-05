@@ -1,5 +1,18 @@
 """metajudge: audit an LLM judge/rubric instrument."""
 
-__version__ = "0.0.1"
+from metajudge.data import Ratings
+from metajudge.dif import DifResult, mantel_haenszel_dif
+from metajudge.reliability import AlphaResult, IccResult, icc, krippendorff_alpha
 
-__all__ = ["__version__"]
+__version__ = "0.1.0"
+
+__all__ = [
+    "AlphaResult",
+    "DifResult",
+    "IccResult",
+    "Ratings",
+    "__version__",
+    "icc",
+    "krippendorff_alpha",
+    "mantel_haenszel_dif",
+]
