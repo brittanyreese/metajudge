@@ -8,7 +8,7 @@ from metajudge.report import ReportCard, audit
 def _ratings() -> Ratings:
     rows: list[dict[str, object]] = []
     groups = ["foc", "ref"]
-    for i in range(10):
+    for i in range(40):
         grp = groups[i % 2]
         for r_idx in range(3):
             rows.append(

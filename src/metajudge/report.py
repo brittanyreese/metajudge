@@ -23,7 +23,7 @@ class ReportCard:
 
     def to_markdown(self) -> str:
         a = self.alpha
-        i = self.icc
+        ic = self.icc
         d = self.dif
         return "\n".join(
             [
@@ -32,8 +32,8 @@ class ReportCard:
                 "## Reliability",
                 f"- Krippendorff's alpha ({a.level}): {a.alpha:.3f} "
                 f"[95% CI {a.ci_low:.3f}, {a.ci_high:.3f}]",
-                f"- ICC(2,1): {i.icc1:.3f}; ICC(2,k): {i.icck:.3f} "
-                f"({i.n_targets} targets x {i.n_raters} raters)",
+                f"- ICC(2,1): {ic.icc1:.3f}; ICC(2,k): {ic.icck:.3f} "
+                f"({ic.n_targets} targets x {ic.n_raters} raters)",
                 "",
                 "## DIF",
                 f"- {d.focal_level} vs {d.reference_level}: "
