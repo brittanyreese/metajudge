@@ -8,7 +8,7 @@ import pandas as pd
 
 from metajudge.data import Ratings
 
-# Fabbri et al. (2020) Table 2 taxonomy. Must match SYSTEM_FAMILY in scripts/prep_demo.py.
+# Fabbri et al. (2020) model taxonomy. Must match SYSTEM_FAMILY in scripts/prep_demo.py.
 # Included here for documentation; the stratum column in demo.csv already encodes the mapping.
 SYSTEM_FAMILY: dict[str, str] = {
     "M0": "extractive",  # Lead-3

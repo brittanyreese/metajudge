@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pandas as pd
 
-# Fabbri et al. (2020) Table 2 taxonomy.
+# Fabbri et al. (2020) model taxonomy.
 # Verify model_ids against the JSONL on first run (logged below).
 SYSTEM_FAMILY: dict[str, str] = {
     "M0": "extractive",  # Lead-3
