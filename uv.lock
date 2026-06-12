@@ -515,9 +515,10 @@ dependencies = [
     { name = "scipy", version = "1.18.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
 ]
 
-[package.optional-dependencies]
+[package.dev-dependencies]
 dev = [
     { name = "hypothesis" },
+    { name = "pandas-stubs" },
     { name = "pingouin" },
     { name = "pre-commit" },
     { name = "pyright" },
@@ -527,30 +528,26 @@ dev = [
     { name = "statsmodels" },
 ]
 
-[package.dev-dependencies]
-dev = [
-    { name = "pandas-stubs" },
-]
-
 [package.metadata]
 requires-dist = [
-    { name = "hypothesis", marker = "extra == 'dev'", specifier = ">=6.100" },
     { name = "krippendorff", specifier = ">=0.6" },
     { name = "numpy", specifier = ">=1.26" },
     { name = "pandas", specifier = ">=2.1" },
-    { name = "pingouin", marker = "extra == 'dev'", specifier = ">=0.5" },
-    { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.7" },
-    { name = "pyright", marker = "extra == 'dev'", specifier = ">=1.1.380" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6" },
     { name = "scipy", specifier = ">=1.11" },
-    { name = "statsmodels", marker = "extra == 'dev'", specifier = ">=0.14" },
 ]
-provides-extras = ["dev"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "pandas-stubs", specifier = ">=3.0.3.260530" }]
+dev = [
+    { name = "hypothesis", specifier = ">=6.100" },
+    { name = "pandas-stubs", specifier = ">=3.0.3.260530" },
+    { name = "pingouin", specifier = ">=0.5" },
+    { name = "pre-commit", specifier = ">=3.7" },
+    { name = "pyright", specifier = ">=1.1.380" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-cov", specifier = ">=5" },
+    { name = "ruff", specifier = ">=0.6" },
+    { name = "statsmodels", specifier = ">=0.14" },
+]
 
 [[package]]
 name = "narwhals"

@@ -110,6 +110,13 @@ def mantel_haenszel_dif(
     of judge ability (the per-item mean), and the per-bin 2x2 group x correctness
     tables are pooled via :func:`_mh_from_tables`.
 
+    ``n_match_bins`` is a real knob, not an inert default: because the matching
+    variable is the same per-item mean that the response is dichotomized from,
+    coarser bins leave more group ability difference unmatched (larger, more
+    significant common OR) and finer bins approach collinearity (OR toward 1, no
+    significance). The default of 4 is a middle ground, not a tuned value; report
+    or sweep it when the effect size matters.
+
     When the matching variable and the dichotomized response are collinear (for
     example single-rater binary scores, where ability *is* the response), every
     ability bin separates the outcome and the matched strata carry no information.

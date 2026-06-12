@@ -14,18 +14,6 @@ dependencies = [
     "krippendorff>=0.6",
 ]
 
-[project.optional-dependencies]
-dev = [
-    "pytest>=8",
-    "pytest-cov>=5",
-    "hypothesis>=6.100",
-    "pingouin>=0.5",
-    "statsmodels>=0.14",
-    "ruff>=0.6",
-    "pyright>=1.1.380",
-    "pre-commit>=3.7",
-]
-
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
@@ -53,7 +41,18 @@ pythonVersion = "3.11"
 addopts = "-q --cov=metajudge --cov-report=term-missing"
 testpaths = ["tests"]
 
+# Local development tooling. PEP 735 dependency groups are not published to PyPI
+# and are installed by default by `uv run` and `uv sync`, so `uv run pytest`
+# works with no extra flags in any fresh checkout or worktree.
 [dependency-groups]
 dev = [
+    "pytest>=8",
+    "pytest-cov>=5",
+    "hypothesis>=6.100",
+    "pingouin>=0.5",
+    "statsmodels>=0.14",
+    "ruff>=0.6",
+    "pyright>=1.1.380",
+    "pre-commit>=3.7",
     "pandas-stubs>=3.0.3.260530",
 ]
