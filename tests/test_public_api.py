@@ -11,7 +11,7 @@ def test_public_symbols_exported() -> None:
         "AlphaResult",
         "icc",
         "IccResult",
-        "mantel_haenszel_dif",
+        "logistic_dif",
         "DifResult",
     ]:
         assert hasattr(metajudge, name), name

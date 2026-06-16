@@ -20,11 +20,10 @@ def load_demo() -> Ratings:
     coherence scores 1-5, stratum = system family (extractive / abstractive).
     Source: Fabbri et al. (2020) SummEval, MIT license. See data/SOURCE.md.
 
-    DIF note: scores are 1-5 ordinal; the binary MH engine averages each item's
-    raters, then dichotomizes those per-item means at their median. This discards
-    ordinal variation and detects uniform DIF only. The result also depends on the
-    n_match_bins default (see mantel_haenszel_dif). Polytomous-native methods
-    (GMH, OLR) belong to E04.
+    DIF note: scores are 1-5 ordinal and audited with ordinal logistic-regression
+    DIF (see logistic_dif). With no explicit conditioner the analysis matches on a
+    leave-one-rater-out rest score across the 3 expert raters; pass an external
+    quality conditioner for the stronger matching described in the DIF ADR.
     """
     resource = files("metajudge") / "data" / "demo.csv"
     with resource.open("r", encoding="utf-8") as handle:

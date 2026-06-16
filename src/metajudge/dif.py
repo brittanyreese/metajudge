@@ -1,192 +1,278 @@
-"""DIF pillar: Mantel-Haenszel across one stratum with ETS A/B/C classification.
+"""DIF pillar: ordinal (proportional-odds) logistic-regression DIF.
 
-The signature contribution of this library. ``mantel_haenszel_dif`` dichotomizes
-each item's score, matches items on binned judge ability, and pools the per-bin
-2x2 (group x correctness) tables into the Mantel-Haenszel common odds ratio,
-then maps that onto the ETS (Holland & Thayer) A/B/C effect-size scale.
+Implements the Zumbo (1999) logistic-regression DIF framework for ordinal scores,
+as used by the lordif package (Choi, Gibbons & Crane, 2011). Three nested
+proportional-odds (cumulative logit) models per comparison yield likelihood-ratio
+chi-square tests for total (2 df), uniform (1 df), and nonuniform (1 df) DIF; effect
+size is the Nagelkerke pseudo-R-squared change classified on the Jodoin & Gierl (2001)
+thresholds. See docs/decisions/2026-06-22-e07-dif-ordinal-logistic-regression.md.
 
-statsmodels is *not* imported here; it is only an oracle in the test suite. The
-sole runtime statistics dependency is ``scipy.stats.chi2`` for the p-value.
+A DIF analysis needs a quality conditioner independent of the studied response. The
+default conditioner is a leave-one-rater-out rest score; callers may pass an explicit
+external conditioner instead. With a single rater and no external conditioner there is
+no independent conditioner and the analysis refuses to run.
+
+statsmodels is *not* imported here; it is only an oracle in the test suite. The runtime
+fit is scipy alone.
 """
 
 from __future__ import annotations
 
-import math
+from collections.abc import Hashable, Mapping
 from dataclasses import dataclass
 
 import numpy as np
-import pandas as pd
 from numpy.typing import NDArray
+from scipy.optimize import minimize  # type: ignore[import-untyped]
+from scipy.special import expit  # type: ignore[import-untyped]
 from scipy.stats import chi2  # type: ignore[import-untyped]
 
 from metajudge.data import Ratings
 
+# Jodoin & Gierl (2001) Nagelkerke R-squared change thresholds.
+_JG_NEGLIGIBLE = 0.035
+_JG_LARGE = 0.070
+
 
 @dataclass(frozen=True)
 class DifResult:
-    """Mantel-Haenszel DIF outcome for one focal-vs-reference comparison."""
+    """Ordinal logistic-regression DIF outcome for one focal-vs-reference comparison."""
 
-    common_odds_ratio: float
-    mh_chi_square: float
-    p_value: float
-    mh_delta: float
-    ets_class: str
+    chi2_total: float
+    chi2_uniform: float
+    chi2_nonuniform: float
+    p_total: float
+    p_uniform: float
+    p_nonuniform: float
+    nagelkerke_r2_delta: float
+    dif_class: str
+    conditioner_source: str
+    n_obs: int
     reference_level: str
     focal_level: str
+    converged: bool
 
 
-def _mh_from_tables(tables: list[NDArray[np.float64]]) -> tuple[float, float]:
-    """Pool a list of 2x2 stratum tables into the MH OR and MH chi-square.
+def _classify_jodoin_gierl(r2_delta: float) -> str:
+    """Map a Nagelkerke R-squared change to an A/B/C DIF magnitude class.
 
-    Each table is ``[[a, b], [c, d]]`` where row 0 is the reference group and
-    row 1 the focal group, column 0 is "correct" and column 1 "incorrect".
-
-    Returns ``(common_odds_ratio, mh_chi_square)`` where:
-
-    - ``OR = sum(a_k * d_k / n_k) / sum(b_k * c_k / n_k)``
-    - ``chi_square = (|sum a_k - sum E(a_k)| - 0.5)^2 / sum Var(a_k)``
-      with ``E(a_k) = (a_k + b_k)(a_k + c_k) / n_k`` and
-      ``Var(a_k) = (a+b)(c+d)(a+c)(b+d) / (n_k^2 (n_k - 1))``.
-
-    Empty strata (``n_k == 0``) and single-observation strata contribute nothing
-    to their respective sums. If the OR denominator is zero the odds ratio is
-    ``inf``; if the variance sum is zero the chi-square is ``0.0``. This matches
-    ``statsmodels.stats.contingency_tables.StratifiedTable`` to floating-point
-    precision on well-posed tables.
+    Jodoin & Gierl (2001): negligible (A) below 0.035, moderate (B) in
+    ``[0.035, 0.070)``, large (C) at or above 0.070. These are an R-squared magnitude
+    rule, not the ETS Mantel-Haenszel delta classification.
     """
-    num_or = 0.0
-    den_or = 0.0
-    sum_a = 0.0
-    sum_ea = 0.0
-    sum_var = 0.0
-    for table in tables:
-        a, b = float(table[0][0]), float(table[0][1])
-        c, d = float(table[1][0]), float(table[1][1])
-        n = a + b + c + d
-        if n == 0:
-            continue
-        num_or += a * d / n
-        den_or += b * c / n
-        sum_a += a
-        sum_ea += (a + b) * (a + c) / n
-        if n > 1:
-            sum_var += (a + b) * (c + d) * (a + c) * (b + d) / (n * n * (n - 1))
-
-    common_or = num_or / den_or if den_or > 0 else math.inf
-    chi_sq = (abs(sum_a - sum_ea) - 0.5) ** 2 / sum_var if sum_var > 0 else 0.0
-    return common_or, chi_sq
+    if r2_delta < _JG_NEGLIGIBLE:
+        return "A"
+    if r2_delta < _JG_LARGE:
+        return "B"
+    return "C"
 
 
-def _classify(common_or: float, p_value: float) -> tuple[float, str]:
-    """Map a common odds ratio + p-value to ETS delta and A/B/C class.
+def _fit_proportional_odds(endog: NDArray[np.int_], x: NDArray[np.float64]) -> tuple[float, bool]:
+    """Fit a cumulative-logit (proportional-odds) model by ML.
 
-    ``mh_delta = -2.35 * ln(OR)``. Class A (negligible) if ``p >= 0.05`` or
-    ``|delta| < 1.0``; class C (large) if ``p < 0.05`` and ``|delta| >= 1.5``;
-    class B otherwise. A non-positive or non-finite odds ratio yields delta 0.0.
+    Returns ``(log_likelihood, converged)``. ``endog`` holds contiguous category indices
+    ``0..K-1`` (``K >= 2``). ``x`` is the ``(n, p)`` design matrix (no intercept; absorbed
+    into the thresholds). The model is ``P(Y <= k) = sigmoid(t_k - x.beta)`` with strictly
+    increasing thresholds ``t_k``, parameterized as ``t_0`` plus softplus increments to
+    keep them ordered. This reproduces R ``MASS::polr`` (method "logistic") and, in the
+    two-category limit, the ``statsmodels`` ``Logit`` MLE.
     """
-    delta = -2.35 * math.log(common_or) if common_or > 0 and math.isfinite(common_or) else 0.0
-    if p_value >= 0.05 or abs(delta) < 1.0:
-        return delta, "A"
-    if abs(delta) >= 1.5:
-        return delta, "C"
-    return delta, "B"
+    n, p = x.shape
+    k = int(endog.max()) + 1
+    n_cut = k - 1
+    counts: NDArray[np.float64] = np.bincount(endog, minlength=k).astype(float)  # type: ignore[reportUnknownMemberType]
+
+    # Initialize thresholds from the marginal cumulative logits, betas at zero.
+    cumulative: NDArray[np.float64] = np.cumsum(counts)[:-1] / n  # type: ignore[reportUnknownMemberType]
+    cum: NDArray[np.float64] = np.clip(cumulative, 1e-6, 1 - 1e-6)  # type: ignore[reportUnknownMemberType]
+    t_init: NDArray[np.float64] = np.log(cum / (1.0 - cum))
+    theta_init: NDArray[np.float64] = np.empty(n_cut)
+    theta_init[0] = t_init[0]
+    diffs: NDArray[np.float64] = np.clip(np.diff(t_init), 1e-6, None)  # type: ignore[reportUnknownMemberType]
+    theta_init[1:] = np.log(np.expm1(diffs))  # inverse softplus
+    x0: NDArray[np.float64] = np.concatenate([np.zeros(p), theta_init])  # type: ignore[reportUnknownMemberType]
+    rows: NDArray[np.intp] = np.arange(n)  # type: ignore[reportUnknownMemberType]
+
+    def neg_log_likelihood(params: NDArray[np.float64]) -> float:
+        beta: NDArray[np.float64] = params[:p]
+        theta: NDArray[np.float64] = params[p:]
+        thresh: NDArray[np.float64] = np.empty(n_cut)
+        thresh[0] = theta[0]
+        if n_cut > 1:
+            thresh[1:] = thresh[0] + np.cumsum(np.logaddexp(0.0, theta[1:]))  # type: ignore[reportUnknownMemberType]
+        xb: NDArray[np.float64] = x @ beta
+        # cumulative P(Y <= k) for k = 0..K-2, shape (n, K-1)
+        cdf: NDArray[np.float64] = expit(thresh[np.newaxis, :] - xb[:, np.newaxis])
+        full: NDArray[np.float64] = np.empty((n, k))
+        full[:, 0] = cdf[:, 0]
+        if k > 2:
+            full[:, 1:-1] = np.diff(cdf, axis=1)  # type: ignore[reportUnknownMemberType]
+        full[:, -1] = 1.0 - cdf[:, -1]
+        probs: NDArray[np.float64] = full[rows, endog]
+        return float(-np.sum(np.log(np.clip(probs, 1e-12, None))))  # type: ignore[reportUnknownMemberType]
+
+    res = minimize(  # type: ignore[reportUnknownVariableType]
+        neg_log_likelihood, x0, method="BFGS", options={"maxiter": 2000}
+    )
+    converged = bool(res.success)  # type: ignore[reportUnknownMemberType, reportUnknownArgumentType]
+    if not converged:  # pragma: no cover - retry path for hard fits
+        res = minimize(  # type: ignore[reportUnknownVariableType]
+            neg_log_likelihood, x0, method="Nelder-Mead", options={"maxiter": 20000}
+        )
+        converged = bool(res.success)  # type: ignore[reportUnknownMemberType, reportUnknownArgumentType]
+    return float(-res.fun), converged  # type: ignore[reportUnknownMemberType, reportUnknownArgumentType]
 
 
-def mantel_haenszel_dif(
+def _nagelkerke(ll_model: float, ll_null: float, n: int) -> float:
+    """Nagelkerke pseudo-R-squared for a model log-likelihood vs the null."""
+    cox_snell = 1.0 - np.exp(2.0 * (ll_null - ll_model) / n)
+    denom = 1.0 - np.exp(2.0 * ll_null / n)
+    return float(cox_snell / denom)
+
+
+def logistic_dif(
     ratings: Ratings,
     *,
     focal: str,
     reference: str,
-    n_match_bins: int = 4,
-    score_threshold: float | None = None,
+    conditioner: Mapping[Hashable, float] | None = None,
 ) -> DifResult:
-    """Mantel-Haenszel DIF of ``focal`` vs ``reference`` with ETS classification.
+    """Ordinal logistic-regression DIF of ``focal`` vs ``reference``.
 
-    Each item's score (mean across raters) is dichotomized into "correct" /
-    "incorrect" at ``score_threshold``. The default threshold is the median of
-    the per-item mean scores; "correct" is ``score > threshold`` (falling back to
-    ``score >= threshold`` when the strict split leaves no variation, e.g. a
-    boundary-valued median). Items are matched on ``n_match_bins`` quantile bins
-    of judge ability (the per-item mean), and the per-bin 2x2 group x correctness
-    tables are pooled via :func:`_mh_from_tables`.
+    Fits three nested proportional-odds models (conditioner; + group; + group x
+    conditioner) and returns the likelihood-ratio chi-square tests for total, uniform,
+    and nonuniform DIF, the Nagelkerke R-squared change, and its A/B/C class.
 
-    ``n_match_bins`` is a real knob, not an inert default: because the matching
-    variable is the same per-item mean that the response is dichotomized from,
-    coarser bins leave more group ability difference unmatched (larger, more
-    significant common OR) and finer bins approach collinearity (OR toward 1, no
-    significance). The default of 4 is a middle ground, not a tuned value; report
-    or sweep it when the effect size matters.
+    The conditioner is the quality axis the responses are matched on, and it must be
+    independent of the studied response. If ``conditioner`` is given it maps each item to
+    an external quality score (the stronger path). Otherwise a leave-one-rater-out rest
+    score is used, which needs at least two raters per item. The conditioner is
+    standardized internally; this affine rescaling does not change the likelihood-ratio
+    tests or the R-squared change.
 
-    When the matching variable and the dichotomized response are collinear (for
-    example single-rater binary scores, where ability *is* the response), every
-    ability bin separates the outcome and the matched strata carry no information.
-    In that case the analysis falls back to the unmatched single pooled 2x2
-    table, which is the correct degenerate-stratification limit of MH.
+    The rest-score default detects differential functioning relative to the rater panel:
+    it removes the studied rater's own response but not a bias shared across the panel.
+    When the bias is a property of the instrument applied to a group (every rater shares
+    it), the rest score is contaminated by that shared bias and will understate the DIF.
+    Use an external, independent conditioner (a gold quality score, or a leave-one-
+    criterion-out mean across rubric dimensions) for instrument-level bias.
 
     Raises:
-        ValueError: if ``focal`` or ``reference`` is not a stratum level.
+        ValueError: if ``focal`` or ``reference`` is not a stratum level; if an explicit
+            conditioner omits an included item; if no independent conditioner can be
+            formed (single rating per item and no explicit conditioner); if all responses
+            fall in one category; or if the conditioner is constant or near-perfectly
+            collinear with the group, so DIF is not identifiable.
     """
     strata = ratings.strata()
     for level in (focal, reference):
         if level not in strata:
             raise ValueError(f"stratum level not found: {level}")
 
-    items = list(ratings.items)
-    per_item = ratings.wide().mean(axis=1).reindex(items)
-
-    scores: NDArray[np.float64] = per_item.to_numpy(dtype=float)
-    threshold = float(per_item.median()) if score_threshold is None else score_threshold
-    correct: NDArray[np.bool_] = scores > threshold
-    if int(correct.sum()) in (0, len(items)):
-        # Strict split collapsed (e.g. boundary-valued threshold); use >=.
-        correct = scores >= threshold
-
     focal_items = set(strata[focal])
     reference_items = set(strata[reference])
-    is_focal: NDArray[np.bool_] = np.array([item in focal_items for item in items])
-    is_reference: NDArray[np.bool_] = np.array([item in reference_items for item in items])
+    included = focal_items | reference_items
 
-    def _table(mask: NDArray[np.bool_]) -> NDArray[np.float64]:
-        ref = is_reference & mask
-        foc = is_focal & mask
-        a = float((ref & correct).sum())
-        b = float((ref & ~correct).sum())
-        cc = float((foc & correct).sum())
-        d = float((foc & ~correct).sum())
-        return np.array([[a, b], [cc, d]], dtype=float)
+    mat: NDArray[np.float64] = ratings.wide().to_numpy(dtype=float)  # items x raters, NaN unrated
+    items_list: list[Hashable] = list(ratings.items)
 
-    ranks = per_item.rank(method="first")
-    bin_labels: NDArray[np.float64] = pd.qcut(
-        ranks, q=n_match_bins, labels=False, duplicates="drop"
-    ).to_numpy(dtype=float)
+    scores: list[float] = []
+    groups: list[float] = []
+    cond_rows: list[float] = []
+    source = "external" if conditioner is not None else "rest_score"
 
-    all_items: NDArray[np.bool_] = np.ones(len(items), dtype=bool)
-    labels: list[float] = sorted(
-        {float(x) for x in bin_labels.tolist() if not math.isnan(float(x))}
-    )
-    tables: list[NDArray[np.float64]] = [_table(bin_labels == label) for label in labels]
+    for row_idx, item in enumerate(items_list):
+        if item not in included:
+            continue
+        row_scores: NDArray[np.float64] = mat[row_idx]
+        rated: NDArray[np.float64] = row_scores[~np.isnan(row_scores)]
+        is_focal_item = item in focal_items
+        if conditioner is not None:
+            if item not in conditioner:
+                raise ValueError(f"conditioner missing item: {item!r}")
+            item_cond = float(conditioner[item])
+            for value in rated.tolist():
+                cond_rows.append(item_cond)
+                scores.append(float(value))
+                groups.append(1.0 if is_focal_item else 0.0)
+        else:
+            count = int(rated.size)
+            if count < 2:
+                raise ValueError(
+                    "cannot form an independent conditioner: item "
+                    f"{item!r} has a single rating and no explicit conditioner was given. "
+                    "Provide >=2 raters per item or pass conditioner=."
+                )
+            total = float(rated.sum())
+            for value in rated.tolist():
+                # leave-one-rater-out rest score: mean of the other raters
+                cond_rows.append((total - float(value)) / (count - 1))
+                scores.append(float(value))
+                groups.append(1.0 if is_focal_item else 0.0)
 
-    common_or, chi_sq = _mh_from_tables(tables)
-    if common_or == 0.0 or not math.isfinite(common_or):
-        # Matched stratification was uninformative (collinear ability/response).
-        # Fall back to the unmatched single pooled 2x2 table.
-        tables = [_table(all_items)]
-        common_or, chi_sq = _mh_from_tables(tables)
+    n = len(scores)
+    g: NDArray[np.float64] = np.asarray(groups, dtype=float)
+    cond: NDArray[np.float64] = np.asarray(cond_rows, dtype=float)
 
-    if common_or == 0.0 or not math.isfinite(common_or):
-        # No outcome variation at all (e.g. a constant response). The MH odds
-        # ratio is genuinely undefined; the only defensible DIF conclusion is
-        # "no differential functioning": OR = 1, no significance, class A.
-        common_or, chi_sq = 1.0, 0.0
+    # Map distinct response values to contiguous category indices 0..K-1.
+    y: NDArray[np.float64] = np.asarray(scores, dtype=float)
+    levels: NDArray[np.float64] = np.unique(y)  # type: ignore[reportUnknownMemberType]
+    if len(levels) < 2:
+        raise ValueError(
+            "cannot fit DIF: all responses fall in a single category, so there is no "
+            "ordinal variation to model."
+        )
 
-    p_value = float(chi2.sf(chi_sq, df=1))  # type: ignore[reportUnknownMemberType]
-    delta, ets = _classify(common_or, p_value)
+    # The conditioner must carry quality information independent of the group. With no
+    # conditioner variance, or a conditioner (near-)perfectly collinear with the group,
+    # quality and group membership cannot be separated and DIF is not identifiable. This
+    # happens, for example, under perfect within-item rater agreement.
+    std = float(cond.std(ddof=0))
+    if std == 0.0:
+        raise ValueError(
+            "cannot identify DIF: the conditioner has no variance, so there is nothing to "
+            "match on. Provide a conditioner that varies across items."
+        )
+    cond_z: NDArray[np.float64] = (cond - cond.mean()) / std
+    correlation = float(np.corrcoef(cond_z, g)[0, 1])  # type: ignore[reportUnknownMemberType]
+    if abs(correlation) > 0.999:
+        raise ValueError(
+            "cannot identify DIF: the conditioner is near-perfectly collinear with the "
+            f"group (|r|={abs(correlation):.4f}), so group membership and quality cannot "
+            "be separated. With the rest-score conditioner this signals perfect "
+            "within-item rater agreement; supply an independent external conditioner."
+        )
+
+    endog: NDArray[np.int_] = np.searchsorted(levels, y).astype(np.int_)  # type: ignore[reportUnknownMemberType]
+    cat_counts: NDArray[np.float64] = np.bincount(endog, minlength=len(levels)).astype(float)  # type: ignore[reportUnknownMemberType]
+    ll_null = float(np.sum(cat_counts * np.log(cat_counts / n)))
+
+    x1: NDArray[np.float64] = cond_z.reshape(-1, 1)
+    x2: NDArray[np.float64] = np.column_stack([cond_z, g])  # type: ignore[reportUnknownMemberType]
+    x3: NDArray[np.float64] = np.column_stack([cond_z, g, cond_z * g])  # type: ignore[reportUnknownMemberType]
+    ll1, c1 = _fit_proportional_odds(endog, x1)
+    ll2, c2 = _fit_proportional_odds(endog, x2)
+    ll3, c3 = _fit_proportional_odds(endog, x3)
+
+    # Optimizer noise can make a nested log-likelihood rise by ~1e-10 under no DIF; a
+    # likelihood-ratio chi-square cannot be negative, so clamp at zero.
+    chi2_total = max(0.0, -2.0 * (ll1 - ll3))
+    chi2_uniform = max(0.0, -2.0 * (ll1 - ll2))
+    chi2_nonuniform = max(0.0, -2.0 * (ll2 - ll3))
+    r2_delta = max(0.0, _nagelkerke(ll3, ll_null, n) - _nagelkerke(ll1, ll_null, n))
+
     return DifResult(
-        common_odds_ratio=float(common_or),
-        mh_chi_square=float(chi_sq),
-        p_value=p_value,
-        mh_delta=float(delta),
-        ets_class=ets,
+        chi2_total=chi2_total,
+        chi2_uniform=chi2_uniform,
+        chi2_nonuniform=chi2_nonuniform,
+        p_total=float(chi2.sf(chi2_total, df=2)),  # type: ignore[reportUnknownMemberType]
+        p_uniform=float(chi2.sf(chi2_uniform, df=1)),  # type: ignore[reportUnknownMemberType]
+        p_nonuniform=float(chi2.sf(chi2_nonuniform, df=1)),  # type: ignore[reportUnknownMemberType]
+        nagelkerke_r2_delta=r2_delta,
+        dif_class=_classify_jodoin_gierl(r2_delta),
+        conditioner_source=source,
+        n_obs=n,
         reference_level=reference,
         focal_level=focal,
+        converged=c1 and c2 and c3,
     )

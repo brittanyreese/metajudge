@@ -21,7 +21,7 @@ def _ratings() -> Ratings:
 def test_audit_returns_full_card() -> None:
     card = audit(_ratings(), focal="foc", reference="ref", level="ordinal", seed=1)
     assert isinstance(card, ReportCard)
-    assert card.dif.ets_class in {"A", "B", "C"}
+    assert card.dif.dif_class in {"A", "B", "C"}
 
 
 def test_markdown_contains_all_pillars() -> None:
@@ -30,4 +30,4 @@ def test_markdown_contains_all_pillars() -> None:
     assert "Krippendorff" in md
     assert "ICC" in md
     assert "DIF" in md
-    assert card.dif.ets_class in md
+    assert card.dif.dif_class in md

@@ -33,4 +33,4 @@ def test_load_demo_stratum_sizes() -> None:
 def test_load_demo_audit_runs() -> None:
     r = load_demo()
     card = audit(r, focal="abstractive", reference="extractive")
-    assert card.dif.ets_class in {"A", "B", "C"}
+    assert card.dif.dif_class in {"A", "B", "C"}

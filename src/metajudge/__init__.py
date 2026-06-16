@@ -2,7 +2,7 @@
 
 from metajudge.data import Ratings
 from metajudge.demo import load_demo
-from metajudge.dif import DifResult, mantel_haenszel_dif
+from metajudge.dif import DifResult, logistic_dif
 from metajudge.reliability import AlphaResult, IccResult, icc, krippendorff_alpha
 from metajudge.report import ReportCard, audit
 
@@ -19,5 +19,5 @@ __all__ = [
     "icc",
     "krippendorff_alpha",
     "load_demo",
-    "mantel_haenszel_dif",
+    "logistic_dif",
 ]

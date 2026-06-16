@@ -6,7 +6,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from metajudge.data import Ratings
-from metajudge.dif import DifResult, mantel_haenszel_dif
+from metajudge.dif import DifResult, logistic_dif
 from metajudge.reliability import (
     AlphaResult,
     IccResult,
@@ -36,10 +36,12 @@ class ReportCard:
                 f"({ic.n_targets} targets x {ic.n_raters} raters)",
                 "",
                 "## DIF",
-                f"- {d.focal_level} vs {d.reference_level}: "
-                f"common OR {d.common_odds_ratio:.3f}, MH-D {d.mh_delta:.2f}, "
-                f"p={d.p_value:.4f}",
-                f"- ETS classification: {d.ets_class}",
+                f"- {d.focal_level} vs {d.reference_level} "
+                f"(conditioner: {d.conditioner_source}, n={d.n_obs})",
+                f"- Uniform DIF: chi2(1)={d.chi2_uniform:.2f}, p={d.p_uniform:.4f}",
+                f"- Nonuniform DIF: chi2(1)={d.chi2_nonuniform:.2f}, p={d.p_nonuniform:.4f}",
+                f"- Effect size (Nagelkerke R2 delta): {d.nagelkerke_r2_delta:.3f} "
+                f"(Jodoin-Gierl class {d.dif_class})",
             ]
         )
 
@@ -55,5 +57,5 @@ def audit(
     return ReportCard(
         alpha=krippendorff_alpha(ratings, level=level, seed=seed),
         icc=icc(ratings),
-        dif=mantel_haenszel_dif(ratings, focal=focal, reference=reference),
+        dif=logistic_dif(ratings, focal=focal, reference=reference),
     )
