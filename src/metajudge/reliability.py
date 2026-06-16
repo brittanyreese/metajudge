@@ -71,7 +71,14 @@ class IccResult:
 def icc(ratings: Ratings) -> IccResult:
     wide = ratings.wide()
     if bool(wide.isna().to_numpy().any()):
-        raise ValueError("ICC requires a complete matrix; missing cells found")
+        raise ValueError(
+            "ICC(2,1)/(2,k) is defined on a complete crossed targets x raters matrix; "
+            "missing cells found. Incomplete or partially-crossed designs require a "
+            "variance-components estimator (ten Hove et al. 2024, Psychological Methods), "
+            "not listwise deletion, which is biased and discards information. That "
+            "estimator is the deferred E04 variance pillar; E07 refuses here rather than "
+            "report a wrong reliability coefficient."
+        )
     data = wide.to_numpy(dtype=float)  # targets x raters
     n, k = data.shape
 

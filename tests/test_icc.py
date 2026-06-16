@@ -50,9 +50,18 @@ def test_icc_matches_pingouin_oracle() -> None:
     assert res.icck == pytest.approx(float(table.loc["ICC(A,k)", "ICC"]), abs=1e-6)
 
 
-def test_icc_rejects_missing_cells() -> None:
+def test_icc_rejects_missing_cells_with_cited_guidance() -> None:
+    # Shrout-Fleiss ICC is defined on a complete crossed design. For incomplete /
+    # partially-crossed data the correct estimand is a variance-components estimator
+    # (ten Hove et al. 2024), not listwise deletion (biased). That machinery is the
+    # deferred E04 variance pillar, so E07 refuses rather than ship a wrong number.
     wide = _shrout_fleiss_table()
     wide.loc["t1", "j1"] = None
     r = _wide_to_ratings(wide)
-    with pytest.raises(ValueError, match="missing"):
+    with pytest.raises(ValueError) as exc:
         icc(r)
+    msg = str(exc.value)
+    assert "missing" in msg  # still names the proximate cause
+    assert "variance-components" in msg  # the correct estimator for incomplete data
+    assert "listwise" in msg  # names the biased fallback it is refusing to use
+    assert "E04" in msg  # points to where the correct method is deferred
