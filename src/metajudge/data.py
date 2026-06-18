@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Hashable
+from collections.abc import Hashable, Mapping
 
 import numpy as np
 import pandas as pd
@@ -55,6 +55,66 @@ class Ratings:
             score_col=score,
             stratum_col=stratum,
         )
+
+    @staticmethod
+    def _select_criterion(frame: pd.DataFrame, criterion: str) -> pd.Series:
+        """Pull the per-sample score column for one rubric criterion.
+
+        Handles both `frame_from_evals` shapes: a flat frame whose columns are
+        criteria, and a detailed frame whose columns are a (criterion, field)
+        MultiIndex where field is one of class/score/notes.
+        """
+        if isinstance(frame.columns, pd.MultiIndex):
+            col = (criterion, "score")
+            if col not in frame.columns:
+                raise ValueError(f"criterion {criterion!r} (score field) not found in eval frame")
+            return frame[col]
+        if criterion not in frame.columns:
+            raise ValueError(f"criterion {criterion!r} not found in eval frame")
+        return frame[criterion]
+
+    @classmethod
+    def from_eval_instruments(
+        cls,
+        frames: Mapping[Hashable, pd.DataFrame],
+        *,
+        criterion: str,
+        stratum: Mapping[Hashable, str] | pd.Series | None = None,
+    ) -> Ratings:
+        """Build Ratings from per-judge eval-instrument outputs.
+
+        Each value in `frames` is one judge's (or run's) `frame_from_evals` output
+        (rows = evaluated samples, columns = rubric criteria), keyed by the judge
+        id. The measurement frame is rater = judge, item = sample, score = the
+        selected rubric `criterion`. Rubric criteria are a separate facet, audited
+        one at a time, never treated as raters (a criteria-as-raters frame would
+        measure internal consistency, not inter-rater reliability). See the interop
+        ADR for the cited rationale.
+
+        Pass `stratum` (a sample-id -> stratum-label mapping) to carry a DIF stratum
+        through. Frames are not imported from the eval tool; only their DataFrame
+        output is consumed, so this adds no dependency.
+        """
+        if not frames:
+            raise ValueError("from_eval_instruments needs at least one judge frame")
+        parts: list[pd.DataFrame] = []
+        for rater_id, frame in frames.items():
+            scores = cls._select_criterion(frame, criterion)
+            parts.append(
+                pd.DataFrame(
+                    {
+                        "item": list(scores.index),
+                        "rater": rater_id,
+                        "score": scores.to_numpy(),
+                    }
+                )
+            )
+        long = pd.concat(parts, ignore_index=True)
+        if stratum is not None:
+            mapping = stratum.to_dict() if isinstance(stratum, pd.Series) else dict(stratum)
+            long["stratum"] = long["item"].map(mapping)
+            return cls.from_long(long, item="item", rater="rater", score="score", stratum="stratum")
+        return cls.from_long(long, item="item", rater="rater", score="score")
 
     @property
     def n_items(self) -> int:
