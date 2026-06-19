@@ -28,15 +28,24 @@ class ReportCard:
         d = self.dif
         if d.conditioner_source == "external":
             dif_header = "## DIF (instrument-level, external conditioner)"
-            caveat: list[str] = []
+            notes: list[str] = []
         else:
             dif_header = "## DIF (panel-relative, rest-score conditioner)"
-            caveat = [
-                "",
+            notes = [
                 "> Note: the rest-score conditioner cannot see bias shared across the "
                 "entire rater panel, so this is panel-relative DIF, not an instrument-level "
                 "fairness clearance. Pass an external quality conditioner to test for "
                 "instrument-level bias.",
+                "",
+            ]
+        # The convergence warning and the panel-relative note sit ABOVE the statistics so a
+        # reader who excerpts the headline numbers cannot drop them.
+        if not d.converged:
+            notes = [
+                "> WARNING: the DIF model fit did not converge; the chi-square statistics "
+                "and effect size below are unreliable and must not be acted on.",
+                "",
+                *notes,
             ]
         lines = [
             "# metajudge report card",
@@ -48,6 +57,7 @@ class ReportCard:
             f"({ic.n_targets} targets x {ic.n_raters} raters)",
             "",
             dif_header,
+            *notes,
             f"- {d.focal_level} vs {d.reference_level} "
             f"(conditioner: {d.conditioner_source}, n={d.n_obs})",
             f"- Uniform DIF: chi2(1)={d.chi2_uniform:.2f}, p={d.p_uniform:.4f}",
@@ -55,7 +65,7 @@ class ReportCard:
             f"- Effect size (Nagelkerke R2 delta): {d.nagelkerke_r2_delta:.3f} "
             f"(Jodoin-Gierl class {d.dif_class})",
         ]
-        return "\n".join(lines + caveat)
+        return "\n".join(lines)
 
 
 def audit(

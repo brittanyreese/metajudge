@@ -5,8 +5,31 @@ import pandas as pd
 import pytest
 
 from metajudge.data import Ratings
-from metajudge.dif import logistic_dif
+from metajudge.dif import DifResult, logistic_dif
+from metajudge.reliability import AlphaResult, IccResult
 from metajudge.report import ReportCard, audit
+
+
+def _card(*, converged: bool, conditioner_source: str = "rest_score") -> ReportCard:
+    """A minimal report card with a chosen convergence flag / conditioner source."""
+    alpha = AlphaResult(alpha=0.5, ci_low=0.4, ci_high=0.6, level="ordinal", n_bootstrap=1000)
+    ic = IccResult(icc1=0.3, icck=0.6, n_targets=40, n_raters=3)
+    dif = DifResult(
+        chi2_total=1.0,
+        chi2_uniform=0.5,
+        chi2_nonuniform=0.5,
+        p_total=0.6,
+        p_uniform=0.5,
+        p_nonuniform=0.5,
+        nagelkerke_r2_delta=0.01,
+        dif_class="A",
+        conditioner_source=conditioner_source,
+        n_obs=120,
+        reference_level="ref",
+        focal_level="foc",
+        converged=converged,
+    )
+    return ReportCard(alpha=alpha, icc=ic, dif=dif)
 
 
 def _ratings() -> Ratings:
@@ -110,3 +133,21 @@ def test_markdown_external_is_instrument_level_no_warning() -> None:
     assert "instrument-level" in md
     assert "panel-relative" not in md
     assert "fairness clearance" not in md
+
+
+def test_markdown_warns_when_dif_fit_not_converged() -> None:
+    md = _card(converged=False).to_markdown()
+    assert "did not converge" in md
+
+
+def test_markdown_no_convergence_warning_when_converged() -> None:
+    md = _card(converged=True).to_markdown()
+    assert "did not converge" not in md
+
+
+def test_markdown_rest_score_caveat_precedes_statistics() -> None:
+    # The panel-relative caveat must sit above the chi-square lines: a reader who excerpts
+    # the headline numbers should not be able to drop the "not a fairness clearance" note.
+    md = _card(converged=True, conditioner_source="rest_score").to_markdown()
+    assert "fairness clearance" in md
+    assert md.index("fairness clearance") < md.index("Uniform DIF")

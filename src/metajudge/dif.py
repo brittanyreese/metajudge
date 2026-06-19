@@ -130,6 +130,26 @@ def _nagelkerke(ll_model: float, ll_null: float, n: int) -> float:
     return float(cox_snell / denom)
 
 
+# Optimizer noise can make a nested log-likelihood rise by ~1e-10 under no DIF; a
+# likelihood-ratio chi-square cannot be negative, so clamp at zero. But a *meaningful*
+# negative -- the fuller model fitting worse than the model it nests -- is impossible
+# unless the fit failed, and the bare clamp would mask such a divergence as a clean null.
+_LR_NOISE_TOL = 1e-6
+
+
+def _lr_chi2(ll_reduced: float, ll_full: float, tol: float = _LR_NOISE_TOL) -> tuple[float, bool]:
+    """Nested likelihood-ratio chi-square ``-2(ll_reduced - ll_full)`` with a fit guard.
+
+    Returns ``(chi2, ok)``. ``chi2`` is clamped at zero. ``ok`` is ``False`` when the raw
+    statistic is negative beyond ``tol`` (the fuller model fit worse than the model it
+    nests), which signals an optimization failure rather than the absence of an effect.
+    """
+    raw = -2.0 * (ll_reduced - ll_full)
+    if raw < -tol:
+        return 0.0, False
+    return max(0.0, raw), True
+
+
 def logistic_dif(
     ratings: Ratings,
     *,
@@ -254,11 +274,12 @@ def logistic_dif(
     ll2, c2 = _fit_proportional_odds(endog, x2)
     ll3, c3 = _fit_proportional_odds(endog, x3)
 
-    # Optimizer noise can make a nested log-likelihood rise by ~1e-10 under no DIF; a
-    # likelihood-ratio chi-square cannot be negative, so clamp at zero.
-    chi2_total = max(0.0, -2.0 * (ll1 - ll3))
-    chi2_uniform = max(0.0, -2.0 * (ll1 - ll2))
-    chi2_nonuniform = max(0.0, -2.0 * (ll2 - ll3))
+    # The three statistics are a telescoping nested decomposition: pre-clamp,
+    # chi2_total == chi2_uniform + chi2_nonuniform exactly (ll2 cancels). The per-test
+    # clamp is the only non-additivity source, and it doubles as a divergence guard.
+    chi2_total, ok_total = _lr_chi2(ll1, ll3)
+    chi2_uniform, ok_uniform = _lr_chi2(ll1, ll2)
+    chi2_nonuniform, ok_nonuniform = _lr_chi2(ll2, ll3)
     r2_delta = max(0.0, _nagelkerke(ll3, ll_null, n) - _nagelkerke(ll1, ll_null, n))
 
     return DifResult(
@@ -274,5 +295,5 @@ def logistic_dif(
         n_obs=n,
         reference_level=reference,
         focal_level=focal,
-        converged=c1 and c2 and c3,
+        converged=c1 and c2 and c3 and ok_total and ok_uniform and ok_nonuniform,
     )

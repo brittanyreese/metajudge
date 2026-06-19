@@ -25,6 +25,7 @@ from metajudge.dif import (
     DifResult,
     _classify_jodoin_gierl,  # pyright: ignore[reportPrivateUsage]
     _fit_proportional_odds,  # pyright: ignore[reportPrivateUsage]
+    _lr_chi2,  # pyright: ignore[reportPrivateUsage]
     logistic_dif,
 )
 
@@ -423,3 +424,26 @@ def test_no_dif_chi2_statistics_are_nonnegative() -> None:
     assert res.chi2_total >= 0.0
     assert res.chi2_uniform >= 0.0
     assert res.chi2_nonuniform >= 0.0
+
+
+def test_lr_chi2_normal_positive_is_ok() -> None:
+    # Full model fits better than reduced (the nested-DIF normal case): positive chi2, ok.
+    value, ok = _lr_chi2(-200.0, -190.0)
+    assert ok is True
+    assert value == pytest.approx(20.0)
+
+
+def test_lr_chi2_clamps_optimizer_noise_to_zero_but_stays_ok() -> None:
+    # Full model infinitesimally worse than reduced (BFGS noise under true no-DIF):
+    # clamp the tiny negative chi2 to 0 but do not flag a fit failure.
+    value, ok = _lr_chi2(-200.0, -200.0 - 1e-9)
+    assert ok is True
+    assert value == 0.0
+
+
+def test_lr_chi2_meaningful_negative_flags_not_converged() -> None:
+    # Full model meaningfully worse than the nested reduced model is impossible unless the
+    # optimizer failed; the bare max(0,.) clamp would mask this as a clean "no DIF" null.
+    value, ok = _lr_chi2(-200.0, -205.0)
+    assert ok is False
+    assert value == 0.0
