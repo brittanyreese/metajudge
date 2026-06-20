@@ -22,10 +22,12 @@ from numpy.typing import NDArray
 
 from metajudge.data import Ratings
 from metajudge.dif import (
+    ClusterBootstrapDif,
     DifResult,
     _classify_jodoin_gierl,  # pyright: ignore[reportPrivateUsage]
     _fit_proportional_odds,  # pyright: ignore[reportPrivateUsage]
     _lr_chi2,  # pyright: ignore[reportPrivateUsage]
+    cluster_bootstrap_dif,
     logistic_dif,
 )
 
@@ -447,3 +449,156 @@ def test_lr_chi2_meaningful_negative_flags_not_converged() -> None:
     value, ok = _lr_chi2(-200.0, -205.0)
     assert ok is False
     assert value == 0.0
+
+
+def test_cluster_bootstrap_returns_bracketed_ci() -> None:
+    ratings, cond = _frozen()
+    res = cluster_bootstrap_dif(
+        ratings, focal="foc", reference="ref", conditioner=cond, n_boot=120, seed=0
+    )
+    assert isinstance(res, ClusterBootstrapDif)
+    assert isinstance(res.base, DifResult)
+    assert res.cluster == "item"
+    assert res.r2_delta_ci_low <= res.r2_delta_ci_high
+    assert res.r2_delta_ci_low >= 0.0
+    assert res.chi2_total_ci_low <= res.chi2_total_ci_high
+    assert 0 < res.n_effective <= res.n_boot == 120
+
+
+def test_cluster_bootstrap_is_reproducible() -> None:
+    ratings, cond = _frozen()
+    kw = {"focal": "foc", "reference": "ref", "conditioner": cond, "n_boot": 120, "seed": 7}
+    a = cluster_bootstrap_dif(ratings, **kw)  # type: ignore[arg-type]
+    b = cluster_bootstrap_dif(ratings, **kw)  # type: ignore[arg-type]
+    assert a.r2_delta_ci_low == b.r2_delta_ci_low
+    assert a.r2_delta_ci_high == b.r2_delta_ci_high
+    assert a.chi2_total_ci_low == b.chi2_total_ci_low
+    assert a.chi2_total_ci_high == b.chi2_total_ci_high
+
+
+def test_cluster_bootstrap_preserves_point_estimate_and_detects_strong_dif() -> None:
+    ratings, cond = _frozen()
+    direct = logistic_dif(ratings, focal="foc", reference="ref", conditioner=cond)
+    res = cluster_bootstrap_dif(
+        ratings, focal="foc", reference="ref", conditioner=cond, n_boot=150, seed=0
+    )
+    # the analytic point estimate is preserved unchanged as the base
+    assert res.base.nagelkerke_r2_delta == pytest.approx(direct.nagelkerke_r2_delta)
+    assert res.base.chi2_total == pytest.approx(direct.chi2_total)
+    # the frozen fixture is strong uniform DIF: the effect-size interval stays above zero
+    assert res.r2_delta_ci_low > 0.0
+
+
+def test_cluster_bootstrap_is_honest_under_no_dif() -> None:
+    # focal and reference drawn from the SAME score pattern: no real DIF. The bootstrap
+    # must not manufacture an effect; its effect-size lower bound stays in the class-A band.
+    pattern = [
+        [1, 2, 3],
+        [3, 4, 2],
+        [5, 4, 5],
+        [2, 1, 2],
+        [4, 5, 4],
+        [3, 2, 3],
+        [2, 3, 1],
+        [4, 3, 5],
+    ]
+    ratings = _make(pattern, pattern)
+    cond: dict[Hashable, float] = {f"ref{i}": float(i % 4) for i in range(len(pattern))}
+    cond.update({f"foc{i}": float(i % 4) for i in range(len(pattern))})
+    res = cluster_bootstrap_dif(
+        ratings, focal="foc", reference="ref", conditioner=cond, n_boot=150, seed=0
+    )
+    assert res.r2_delta_ci_low < 0.035
+
+
+def test_cluster_bootstrap_rest_score_path() -> None:
+    # No external conditioner: each resample rebuilds its own leave-one-rater-out rest
+    # score. Moderate, non-collinear DIF so the engine does not refuse.
+    rows: list[dict[str, object]] = []
+    groups = ["foc", "ref"]
+    for i in range(16):
+        grp = groups[i % 2]
+        for r in range(3):
+            rows.append({"item": f"i{i}", "rater": f"r{r}", "score": (i + r) % 5, "group": grp})
+    df = pd.DataFrame(rows)
+    ratings = Ratings.from_long(df, item="item", rater="rater", score="score", stratum="group")
+    res = cluster_bootstrap_dif(ratings, focal="foc", reference="ref", n_boot=120, seed=0)
+    assert res.base.conditioner_source == "rest_score"
+    assert res.n_effective > 0
+    assert res.r2_delta_ci_low <= res.r2_delta_ci_high
+
+
+def test_cluster_bootstrap_zero_boot_collapses_to_point() -> None:
+    ratings, cond = _frozen()
+    res = cluster_bootstrap_dif(ratings, focal="foc", reference="ref", conditioner=cond, n_boot=0)
+    assert res.n_effective == 0
+    assert res.r2_delta_ci_low == res.r2_delta_ci_high == res.base.nagelkerke_r2_delta
+    assert res.chi2_total_ci_low == res.chi2_total_ci_high == res.base.chi2_total
+
+
+def test_cluster_bootstrap_ci_reliable_tracks_effective_count() -> None:
+    ratings, cond = _frozen()
+    # 200 resamples all survive on the frozen fixture: above the reliability floor.
+    ok = cluster_bootstrap_dif(
+        ratings, focal="foc", reference="ref", conditioner=cond, n_boot=200, seed=0
+    )
+    assert ok.n_effective >= 100
+    assert ok.ci_reliable is True
+    # zero / very thin resampling: the percentile CI is not trustworthy.
+    none = cluster_bootstrap_dif(ratings, focal="foc", reference="ref", conditioner=cond, n_boot=0)
+    assert none.ci_reliable is False
+    thin = cluster_bootstrap_dif(
+        ratings, focal="foc", reference="ref", conditioner=cond, n_boot=5, seed=0
+    )
+    assert thin.n_effective < 100
+    assert thin.ci_reliable is False
+
+
+def test_cluster_bootstrap_ci_level_is_configurable_and_recorded() -> None:
+    ratings, cond = _frozen()
+    narrow = cluster_bootstrap_dif(
+        ratings, focal="foc", reference="ref", conditioner=cond, n_boot=300, seed=0, ci=0.90
+    )
+    wide = cluster_bootstrap_dif(
+        ratings, focal="foc", reference="ref", conditioner=cond, n_boot=300, seed=0, ci=0.99
+    )
+    # the chosen level is recorded for honest, self-describing provenance
+    assert narrow.ci_level == 0.90
+    assert wide.ci_level == 0.99
+    # default stays the 95% interval
+    default = cluster_bootstrap_dif(
+        ratings, focal="foc", reference="ref", conditioner=cond, n_boot=300, seed=0
+    )
+    assert default.ci_level == 0.95
+    # a lower confidence level yields a narrower effect-size interval
+    width_90 = narrow.r2_delta_ci_high - narrow.r2_delta_ci_low
+    width_99 = wide.r2_delta_ci_high - wide.r2_delta_ci_low
+    assert width_90 < width_99
+
+
+@pytest.mark.parametrize("bad", [0.0, 1.0, -0.1, 1.5])
+def test_cluster_bootstrap_invalid_ci_raises(bad: float) -> None:
+    ratings, cond = _frozen()
+    with pytest.raises(ValueError, match="ci must be in"):
+        cluster_bootstrap_dif(
+            ratings, focal="foc", reference="ref", conditioner=cond, n_boot=10, ci=bad
+        )
+
+
+def test_cluster_bootstrap_bounds_are_stable() -> None:
+    # Characterization lock for the engine refactor: the per-resample DIF statistics are
+    # invariant to observation order and do not need the ll2 (uniform/nonuniform) fit, so
+    # bypassing the DataFrame round-trip and dropping that fit leaves these frozen-fixture
+    # bounds unchanged. The tolerance is the engine's optimizer-noise scale (_LR_NOISE_TOL,
+    # 1e-6), not floating-point exactness: a BFGS-derived statistic is not bitwise
+    # reproducible across platforms/BLAS, but a real refactor regression would move these by
+    # orders of magnitude, not parts per million.
+    ratings, cond = _frozen()
+    res = cluster_bootstrap_dif(
+        ratings, focal="foc", reference="ref", conditioner=cond, n_boot=200, seed=0
+    )
+    assert res.n_effective == 200
+    assert res.r2_delta_ci_low == pytest.approx(0.03371076982262634, abs=1e-6)
+    assert res.r2_delta_ci_high == pytest.approx(0.1485152604131145, abs=1e-6)
+    assert res.chi2_total_ci_low == pytest.approx(9.028882920867858, abs=1e-6)
+    assert res.chi2_total_ci_high == pytest.approx(40.180517271142136, abs=1e-6)

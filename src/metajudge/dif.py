@@ -150,6 +150,145 @@ def _lr_chi2(ll_reduced: float, ll_full: float, tol: float = _LR_NOISE_TOL) -> t
     return max(0.0, raw), True
 
 
+@dataclass(frozen=True)
+class _DifStats:
+    """Numeric DIF statistics shared by the analytic fit and the bootstrap refits."""
+
+    chi2_total: float
+    chi2_uniform: float
+    chi2_nonuniform: float
+    nagelkerke_r2_delta: float
+    n_obs: int
+    converged: bool
+
+
+def _emit_item_rows(
+    rated: NDArray[np.float64],
+    *,
+    is_focal: bool,
+    item_cond: float | None,
+    scores: list[float],
+    groups: list[float],
+    cond_rows: list[float],
+) -> None:
+    """Append one (score, group, conditioner) row per rating of a single item.
+
+    ``item_cond`` is the external item conditioner, or ``None`` for the leave-one-rater-out
+    rest score (which needs at least two ratings on the item). Shared by :func:`logistic_dif`
+    and the bootstrap so both assemble identical rows without a DataFrame round-trip.
+    """
+    group = 1.0 if is_focal else 0.0
+    if item_cond is not None:
+        for value in rated.tolist():
+            cond_rows.append(item_cond)
+            scores.append(float(value))
+            groups.append(group)
+        return
+    count = int(rated.size)
+    if count < 2:
+        raise ValueError(
+            "cannot form an independent conditioner: an item has a single rating and no "
+            "explicit conditioner was given. Provide >=2 raters per item or pass conditioner=."
+        )
+    total = float(rated.sum())
+    for value in rated.tolist():
+        # leave-one-rater-out rest score: mean of the other raters
+        cond_rows.append((total - float(value)) / (count - 1))
+        scores.append(float(value))
+        groups.append(group)
+
+
+def _dif_stats(
+    scores: list[float],
+    groups: list[float],
+    cond_rows: list[float],
+    *,
+    want_split: bool,
+) -> _DifStats:
+    """Fit the nested proportional-odds models and return the DIF statistics.
+
+    ``want_split`` controls whether the uniform/nonuniform decomposition is computed: the
+    total chi-square and the Nagelkerke R-squared change need only the conditioner-only and
+    full models, so the bootstrap (which reports a CI for the total only) skips the middle
+    fit -- two fits per resample instead of three. When ``False`` the uniform and nonuniform
+    statistics are ``nan`` and ``converged`` reflects the two fits and the total guard.
+
+    Raises:
+        ValueError: if all responses fall in one category, or the conditioner has no variance
+            or is near-perfectly collinear with the group, so DIF is not identifiable.
+    """
+    n = len(scores)
+    g: NDArray[np.float64] = np.asarray(groups, dtype=float)
+    cond: NDArray[np.float64] = np.asarray(cond_rows, dtype=float)
+
+    # Map distinct response values to contiguous category indices 0..K-1.
+    y: NDArray[np.float64] = np.asarray(scores, dtype=float)
+    levels: NDArray[np.float64] = np.unique(y)  # type: ignore[reportUnknownMemberType]
+    if len(levels) < 2:
+        raise ValueError(
+            "cannot fit DIF: all responses fall in a single category, so there is no "
+            "ordinal variation to model."
+        )
+
+    # The conditioner must carry quality information independent of the group. With no
+    # conditioner variance, or a conditioner (near-)perfectly collinear with the group,
+    # quality and group membership cannot be separated and DIF is not identifiable. This
+    # happens, for example, under perfect within-item rater agreement.
+    std = float(cond.std(ddof=0))
+    if std == 0.0:
+        raise ValueError(
+            "cannot identify DIF: the conditioner has no variance, so there is nothing to "
+            "match on. Provide a conditioner that varies across items."
+        )
+    cond_z: NDArray[np.float64] = (cond - cond.mean()) / std
+    correlation = float(np.corrcoef(cond_z, g)[0, 1])  # type: ignore[reportUnknownMemberType]
+    if abs(correlation) > 0.999:
+        raise ValueError(
+            "cannot identify DIF: the conditioner is near-perfectly collinear with the "
+            f"group (|r|={abs(correlation):.4f}), so group membership and quality cannot "
+            "be separated. With the rest-score conditioner this signals perfect "
+            "within-item rater agreement; supply an independent external conditioner."
+        )
+
+    endog: NDArray[np.int_] = np.searchsorted(levels, y).astype(np.int_)  # type: ignore[reportUnknownMemberType]
+    cat_counts: NDArray[np.float64] = np.bincount(endog, minlength=len(levels)).astype(float)  # type: ignore[reportUnknownMemberType]
+    ll_null = float(np.sum(cat_counts * np.log(cat_counts / n)))
+
+    x1: NDArray[np.float64] = cond_z.reshape(-1, 1)
+    x3: NDArray[np.float64] = np.column_stack([cond_z, g, cond_z * g])  # type: ignore[reportUnknownMemberType]
+    ll1, c1 = _fit_proportional_odds(endog, x1)
+    ll3, c3 = _fit_proportional_odds(endog, x3)
+
+    chi2_total, ok_total = _lr_chi2(ll1, ll3)
+    r2_delta = max(0.0, _nagelkerke(ll3, ll_null, n) - _nagelkerke(ll1, ll_null, n))
+
+    if not want_split:
+        return _DifStats(
+            chi2_total=chi2_total,
+            chi2_uniform=float("nan"),
+            chi2_nonuniform=float("nan"),
+            nagelkerke_r2_delta=r2_delta,
+            n_obs=n,
+            converged=c1 and c3 and ok_total,
+        )
+
+    # The three statistics are a telescoping nested decomposition: pre-clamp,
+    # chi2_total == chi2_uniform + chi2_nonuniform exactly (ll2 cancels). The per-test
+    # clamp is the only non-additivity source, and it doubles as a divergence guard.
+    x2: NDArray[np.float64] = np.column_stack([cond_z, g])  # type: ignore[reportUnknownMemberType]
+    ll2, c2 = _fit_proportional_odds(endog, x2)
+    chi2_uniform, ok_uniform = _lr_chi2(ll1, ll2)
+    chi2_nonuniform, ok_nonuniform = _lr_chi2(ll2, ll3)
+    return _DifStats(
+        chi2_total=chi2_total,
+        chi2_uniform=chi2_uniform,
+        chi2_nonuniform=chi2_nonuniform,
+        nagelkerke_r2_delta=r2_delta,
+        n_obs=n,
+        converged=c1 and c2 and c3 and ok_total and ok_uniform and ok_nonuniform,
+    )
+
+
 def logistic_dif(
     ratings: Ratings,
     *,
@@ -206,94 +345,184 @@ def logistic_dif(
             continue
         row_scores: NDArray[np.float64] = mat[row_idx]
         rated: NDArray[np.float64] = row_scores[~np.isnan(row_scores)]
-        is_focal_item = item in focal_items
+        item_cond: float | None
         if conditioner is not None:
             if item not in conditioner:
                 raise ValueError(f"conditioner missing item: {item!r}")
             item_cond = float(conditioner[item])
-            for value in rated.tolist():
-                cond_rows.append(item_cond)
-                scores.append(float(value))
-                groups.append(1.0 if is_focal_item else 0.0)
         else:
-            count = int(rated.size)
-            if count < 2:
-                raise ValueError(
-                    "cannot form an independent conditioner: item "
-                    f"{item!r} has a single rating and no explicit conditioner was given. "
-                    "Provide >=2 raters per item or pass conditioner=."
-                )
-            total = float(rated.sum())
-            for value in rated.tolist():
-                # leave-one-rater-out rest score: mean of the other raters
-                cond_rows.append((total - float(value)) / (count - 1))
-                scores.append(float(value))
-                groups.append(1.0 if is_focal_item else 0.0)
-
-    n = len(scores)
-    g: NDArray[np.float64] = np.asarray(groups, dtype=float)
-    cond: NDArray[np.float64] = np.asarray(cond_rows, dtype=float)
-
-    # Map distinct response values to contiguous category indices 0..K-1.
-    y: NDArray[np.float64] = np.asarray(scores, dtype=float)
-    levels: NDArray[np.float64] = np.unique(y)  # type: ignore[reportUnknownMemberType]
-    if len(levels) < 2:
-        raise ValueError(
-            "cannot fit DIF: all responses fall in a single category, so there is no "
-            "ordinal variation to model."
+            item_cond = None
+        _emit_item_rows(
+            rated,
+            is_focal=item in focal_items,
+            item_cond=item_cond,
+            scores=scores,
+            groups=groups,
+            cond_rows=cond_rows,
         )
 
-    # The conditioner must carry quality information independent of the group. With no
-    # conditioner variance, or a conditioner (near-)perfectly collinear with the group,
-    # quality and group membership cannot be separated and DIF is not identifiable. This
-    # happens, for example, under perfect within-item rater agreement.
-    std = float(cond.std(ddof=0))
-    if std == 0.0:
-        raise ValueError(
-            "cannot identify DIF: the conditioner has no variance, so there is nothing to "
-            "match on. Provide a conditioner that varies across items."
-        )
-    cond_z: NDArray[np.float64] = (cond - cond.mean()) / std
-    correlation = float(np.corrcoef(cond_z, g)[0, 1])  # type: ignore[reportUnknownMemberType]
-    if abs(correlation) > 0.999:
-        raise ValueError(
-            "cannot identify DIF: the conditioner is near-perfectly collinear with the "
-            f"group (|r|={abs(correlation):.4f}), so group membership and quality cannot "
-            "be separated. With the rest-score conditioner this signals perfect "
-            "within-item rater agreement; supply an independent external conditioner."
-        )
-
-    endog: NDArray[np.int_] = np.searchsorted(levels, y).astype(np.int_)  # type: ignore[reportUnknownMemberType]
-    cat_counts: NDArray[np.float64] = np.bincount(endog, minlength=len(levels)).astype(float)  # type: ignore[reportUnknownMemberType]
-    ll_null = float(np.sum(cat_counts * np.log(cat_counts / n)))
-
-    x1: NDArray[np.float64] = cond_z.reshape(-1, 1)
-    x2: NDArray[np.float64] = np.column_stack([cond_z, g])  # type: ignore[reportUnknownMemberType]
-    x3: NDArray[np.float64] = np.column_stack([cond_z, g, cond_z * g])  # type: ignore[reportUnknownMemberType]
-    ll1, c1 = _fit_proportional_odds(endog, x1)
-    ll2, c2 = _fit_proportional_odds(endog, x2)
-    ll3, c3 = _fit_proportional_odds(endog, x3)
-
-    # The three statistics are a telescoping nested decomposition: pre-clamp,
-    # chi2_total == chi2_uniform + chi2_nonuniform exactly (ll2 cancels). The per-test
-    # clamp is the only non-additivity source, and it doubles as a divergence guard.
-    chi2_total, ok_total = _lr_chi2(ll1, ll3)
-    chi2_uniform, ok_uniform = _lr_chi2(ll1, ll2)
-    chi2_nonuniform, ok_nonuniform = _lr_chi2(ll2, ll3)
-    r2_delta = max(0.0, _nagelkerke(ll3, ll_null, n) - _nagelkerke(ll1, ll_null, n))
+    stats = _dif_stats(scores, groups, cond_rows, want_split=True)
 
     return DifResult(
-        chi2_total=chi2_total,
-        chi2_uniform=chi2_uniform,
-        chi2_nonuniform=chi2_nonuniform,
-        p_total=float(chi2.sf(chi2_total, df=2)),  # type: ignore[reportUnknownMemberType]
-        p_uniform=float(chi2.sf(chi2_uniform, df=1)),  # type: ignore[reportUnknownMemberType]
-        p_nonuniform=float(chi2.sf(chi2_nonuniform, df=1)),  # type: ignore[reportUnknownMemberType]
-        nagelkerke_r2_delta=r2_delta,
-        dif_class=_classify_jodoin_gierl(r2_delta),
+        chi2_total=stats.chi2_total,
+        chi2_uniform=stats.chi2_uniform,
+        chi2_nonuniform=stats.chi2_nonuniform,
+        p_total=float(chi2.sf(stats.chi2_total, df=2)),  # type: ignore[reportUnknownMemberType]
+        p_uniform=float(chi2.sf(stats.chi2_uniform, df=1)),  # type: ignore[reportUnknownMemberType]
+        p_nonuniform=float(chi2.sf(stats.chi2_nonuniform, df=1)),  # type: ignore[reportUnknownMemberType]
+        nagelkerke_r2_delta=stats.nagelkerke_r2_delta,
+        dif_class=_classify_jodoin_gierl(stats.nagelkerke_r2_delta),
         conditioner_source=source,
-        n_obs=n,
+        n_obs=stats.n_obs,
         reference_level=reference,
         focal_level=focal,
-        converged=c1 and c2 and c3 and ok_total and ok_uniform and ok_nonuniform,
+        converged=stats.converged,
+    )
+
+
+# Below this many surviving resamples the 2.5/97.5 percentile CI is too thin to trust;
+# callers should read ``ci_reliable`` (or ``n_effective``) rather than the bounds alone.
+_MIN_EFFECTIVE = 100
+
+
+@dataclass(frozen=True)
+class ClusterBootstrapDif:
+    """Cluster-bootstrap robustness layer over an analytic :class:`DifResult`.
+
+    The analytic likelihood-ratio test pools every (item, rater) cell as i.i.d.; under the
+    clustering of a crossed rater-by-item design that makes it anti-conservative. This
+    resamples whole item blocks (all of an item's rater scores together), stratified within
+    the focal and reference groups, and reports percentile confidence intervals from refits
+    of the validated engine. ``ci_level`` is the confidence level the bounds describe.
+    ``n_effective`` is the count of non-degenerate resamples; when it falls below the
+    reliability floor the bounds are indicative only and ``ci_reliable`` is ``False``. See
+    docs/decisions/2026-06-23-e07-dif-cluster-bootstrap.md.
+    """
+
+    base: DifResult
+    r2_delta_ci_low: float
+    r2_delta_ci_high: float
+    chi2_total_ci_low: float
+    chi2_total_ci_high: float
+    cluster: str
+    ci_level: float
+    n_boot: int
+    n_effective: int
+
+    @property
+    def ci_reliable(self) -> bool:
+        """Whether enough resamples survived for a trustworthy percentile CI.
+
+        ``False`` when fewer than ``_MIN_EFFECTIVE`` (100) resamples cleared the engine's
+        identifiability guards: with so few draws the percentile bounds are noise dressed as
+        precision, and the point estimate (``base``) is the honest summary.
+        """
+        return self.n_effective >= _MIN_EFFECTIVE
+
+
+def cluster_bootstrap_dif(
+    ratings: Ratings,
+    *,
+    focal: str,
+    reference: str,
+    conditioner: Mapping[Hashable, float] | None = None,
+    n_boot: int = 1000,
+    seed: int = 0,
+    ci: float = 0.95,
+) -> ClusterBootstrapDif:
+    """Cluster bootstrap of :func:`logistic_dif` resampling item blocks.
+
+    Keeps the analytic point estimate (``base``) and adds percentile confidence intervals
+    at level ``ci`` (default 0.95 -> 2.5/97.5) for the Nagelkerke R-squared change and the
+    total chi-square, computed by resampling items with replacement, stratified within the
+    focal and reference groups, with each item's full rater block carried intact. This makes
+    the effective sample the number of independent item clusters per group rather than the
+    pooled cell count, and preserves the within-item rater correlation the analytic i.i.d.
+    model ignores.
+
+    Degenerate resamples (a draw with no ordinal variation, or one that fails the engine's
+    identifiability guards) are dropped; the realized count is ``n_effective``. Below the
+    reliability floor (100 surviving resamples) the bounds are indicative only and
+    ``ci_reliable`` is ``False`` -- read the point estimate instead.
+
+    Raises:
+        ValueError: if ``ci`` is not strictly inside ``(0, 1)``.
+    """
+    if not 0.0 < ci < 1.0:
+        raise ValueError(f"ci must be in (0, 1); got {ci}")
+    tail = 100.0 * (1.0 - ci) / 2.0
+    pct_low, pct_high = tail, 100.0 - tail
+    base = logistic_dif(ratings, focal=focal, reference=reference, conditioner=conditioner)
+    strata = ratings.strata()
+    focal_items: list[Hashable] = list(strata[focal])
+    reference_items: list[Hashable] = list(strata[reference])
+
+    # Each item's block is its multiset of rated values; rater identity does not enter the
+    # engine, so the bootstrap feeds these straight into the shared assembly/fit helpers and
+    # skips the DataFrame -> Ratings -> wide round-trip the analytic call needs.
+    mat: NDArray[np.float64] = ratings.wide().to_numpy(dtype=float)  # items x raters
+    item_pos: dict[Hashable, int] = {item: i for i, item in enumerate(ratings.items)}
+    block_values: dict[Hashable, NDArray[np.float64]] = {}
+    for item in focal_items + reference_items:
+        row: NDArray[np.float64] = mat[item_pos[item]]
+        block_values[item] = row[~np.isnan(row)]
+
+    rng = np.random.default_rng(seed)
+    n_focal = len(focal_items)
+    n_reference = len(reference_items)
+    chi2_totals: list[float] = []
+    r2_deltas: list[float] = []
+
+    for _ in range(n_boot):
+        draw_focal = rng.integers(0, n_focal, size=n_focal)
+        draw_reference = rng.integers(0, n_reference, size=n_reference)
+        scores: list[float] = []
+        groups: list[float] = []
+        cond_rows: list[float] = []
+        try:
+            for j in range(n_focal):
+                item = focal_items[int(draw_focal[j])]
+                _emit_item_rows(
+                    block_values[item],
+                    is_focal=True,
+                    item_cond=float(conditioner[item]) if conditioner is not None else None,
+                    scores=scores,
+                    groups=groups,
+                    cond_rows=cond_rows,
+                )
+            for j in range(n_reference):
+                item = reference_items[int(draw_reference[j])]
+                _emit_item_rows(
+                    block_values[item],
+                    is_focal=False,
+                    item_cond=float(conditioner[item]) if conditioner is not None else None,
+                    scores=scores,
+                    groups=groups,
+                    cond_rows=cond_rows,
+                )
+            # Only the total statistic gets a bootstrap CI, so the middle (uniform) fit is
+            # skipped: two proportional-odds fits per resample instead of three.
+            stats = _dif_stats(scores, groups, cond_rows, want_split=False)
+        except ValueError:
+            continue
+        chi2_totals.append(stats.chi2_total)
+        r2_deltas.append(stats.nagelkerke_r2_delta)
+
+    if r2_deltas:
+        r2_low, r2_high = (float(x) for x in np.percentile(r2_deltas, [pct_low, pct_high]))  # type: ignore[reportUnknownMemberType]
+        c2_low, c2_high = (float(x) for x in np.percentile(chi2_totals, [pct_low, pct_high]))  # type: ignore[reportUnknownMemberType]
+    else:
+        r2_low = r2_high = base.nagelkerke_r2_delta
+        c2_low = c2_high = base.chi2_total
+
+    return ClusterBootstrapDif(
+        base=base,
+        r2_delta_ci_low=r2_low,
+        r2_delta_ci_high=r2_high,
+        chi2_total_ci_low=c2_low,
+        chi2_total_ci_high=c2_high,
+        cluster="item",
+        ci_level=ci,
+        n_boot=n_boot,
+        n_effective=len(r2_deltas),
     )
