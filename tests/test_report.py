@@ -12,7 +12,9 @@ from metajudge.report import ReportCard, audit
 
 def _card(*, converged: bool, conditioner_source: str = "rest_score") -> ReportCard:
     """A minimal report card with a chosen convergence flag / conditioner source."""
-    alpha = AlphaResult(alpha=0.5, ci_low=0.4, ci_high=0.6, level="ordinal", n_bootstrap=1000)
+    alpha = AlphaResult(
+        alpha=0.5, ci_low=0.4, ci_high=0.6, level="ordinal", n_bootstrap=1000, n_effective=1000
+    )
     ic = IccResult(icc1=0.3, icck=0.6, n_targets=40, n_raters=3)
     dif = DifResult(
         chi2_total=1.0,
@@ -30,6 +32,26 @@ def _card(*, converged: bool, conditioner_source: str = "rest_score") -> ReportC
         converged=converged,
     )
     return ReportCard(alpha=alpha, icc=ic, dif=dif)
+
+
+def _card_with_alpha(alpha: AlphaResult) -> ReportCard:
+    icc_result = IccResult(icc1=0.8, icck=0.9, n_targets=10, n_raters=3)
+    dif = DifResult(
+        chi2_total=1.0,
+        chi2_uniform=0.5,
+        chi2_nonuniform=0.5,
+        p_total=0.6,
+        p_uniform=0.5,
+        p_nonuniform=0.5,
+        nagelkerke_r2_delta=0.01,
+        dif_class="A",
+        conditioner_source="rest_score",
+        n_obs=30,
+        reference_level="ref",
+        focal_level="foc",
+        converged=True,
+    )
+    return ReportCard(alpha=alpha, icc=icc_result, dif=dif)
 
 
 def _ratings() -> Ratings:
@@ -151,3 +173,33 @@ def test_markdown_rest_score_caveat_precedes_statistics() -> None:
     md = _card(converged=True, conditioner_source="rest_score").to_markdown()
     assert "fairness clearance" in md
     assert md.index("fairness clearance") < md.index("Uniform DIF")
+
+
+def test_markdown_flags_dropped_bootstrap_replicates() -> None:
+    # When resamples were dropped, the CI rests on fewer replicates than requested;
+    # the card must surface the realized count so the CI is not read as full-strength.
+    alpha = AlphaResult(
+        alpha=0.6,
+        ci_low=0.4,
+        ci_high=0.8,
+        level="nominal",
+        n_bootstrap=1000,
+        n_effective=120,
+    )
+    md = _card_with_alpha(alpha).to_markdown()
+    assert "120" in md
+    assert "1000" in md
+
+
+def test_markdown_omits_caveat_when_all_replicates_realized() -> None:
+    alpha = AlphaResult(
+        alpha=0.6,
+        ci_low=0.4,
+        ci_high=0.8,
+        level="nominal",
+        n_bootstrap=1000,
+        n_effective=1000,
+    )
+    md = _card_with_alpha(alpha).to_markdown()
+    # No drop warning: the realized count equals the requested count.
+    assert "of 1000" not in md

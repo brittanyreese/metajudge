@@ -16,11 +16,22 @@ _LevelOfMeasurement = Literal["nominal", "ordinal", "interval", "ratio"]
 
 @dataclass(frozen=True)
 class AlphaResult:
+    """Krippendorff's alpha with a percentile bootstrap CI.
+
+    ``n_bootstrap`` is the requested number of resamples; ``n_effective`` is how
+    many were actually realized. They differ when a resample is degenerate (a
+    column draw with no ratable variation makes alpha undefined and the resample
+    is dropped), in which case the CI rests on ``n_effective`` replicates, not
+    ``n_bootstrap`` -- read a materially smaller ``n_effective`` as a low-precision
+    CI rather than a full-strength one.
+    """
+
     alpha: float
     ci_low: float
     ci_high: float
     level: str
     n_bootstrap: int
+    n_effective: int
 
 
 def _alpha(matrix: NDArray[np.float64], level: str) -> float:
@@ -35,6 +46,16 @@ def krippendorff_alpha(
     n_bootstrap: int = 1000,
     seed: int = 0,
 ) -> AlphaResult:
+    """Krippendorff's alpha with a percentile bootstrap confidence interval.
+
+    The CI is the 2.5/97.5 percentile interval of the bootstrap distribution.
+    This is the simple percentile method without bias correction or
+    acceleration; for alpha it is known to undercover (the interval is too
+    narrow) in small samples or near the boundaries (Hayes & Krippendorff, 2007,
+    *Communication Methods and Measures*). Degenerate resamples (no ratable
+    variation) are dropped; the realized replicate count is reported as
+    ``AlphaResult.n_effective``, which is below ``n_bootstrap`` when that happens.
+    """
     matrix = ratings.coder_unit_matrix()
     point = _alpha(matrix, level)
     rng = np.random.default_rng(seed)
@@ -57,6 +78,7 @@ def krippendorff_alpha(
         ci_high=ci_high,
         level=level,
         n_bootstrap=n_bootstrap,
+        n_effective=len(boot),
     )
 
 

@@ -71,3 +71,27 @@ def test_ci_brackets_point_estimate() -> None:
     res = krippendorff_alpha(r, level="ordinal", n_bootstrap=500, seed=42)
     assert res.ci_low <= res.alpha <= res.ci_high
     assert res.n_bootstrap == 500
+
+
+def test_n_effective_equals_n_bootstrap_on_clean_run() -> None:
+    # A well-varied 9-unit matrix yields no degenerate resamples, so every
+    # requested replicate is realized and the CI rests on the full count.
+    matrix = [
+        [1, 2, 3, 3, 2, 1, 4, 1, 2],
+        [1, 2, 3, 3, 2, 2, 4, 1, 3],
+        [1, 1, 3, 3, 2, 1, 4, 2, 2],
+    ]
+    r = _ratings_from_matrix(matrix)
+    res = krippendorff_alpha(r, level="ordinal", n_bootstrap=500, seed=42)
+    assert res.n_effective == res.n_bootstrap == 500
+
+
+def test_n_effective_counts_only_realized_resamples() -> None:
+    # With two units, many bootstrap resamples draw the same unit twice, leaving
+    # no ratable variation; kd.alpha raises and the resample is dropped. The CI is
+    # then computed on fewer-than-requested replicates, and n_effective must report
+    # that realized count (strictly below n_bootstrap) so the gap is visible.
+    r = _ratings_from_matrix([[1, 0], [1, 0]])
+    res = krippendorff_alpha(r, level="nominal", n_bootstrap=200, seed=1)
+    assert 0 < res.n_effective < res.n_bootstrap
+    assert res.n_bootstrap == 200

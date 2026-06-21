@@ -26,6 +26,15 @@ class ReportCard:
         a = self.alpha
         ic = self.icc
         d = self.dif
+        alpha_ci = (
+            f"- Krippendorff's alpha ({a.level}): {a.alpha:.3f} "
+            f"[95% CI {a.ci_low:.3f}, {a.ci_high:.3f}]"
+        )
+        if a.n_effective < a.n_bootstrap:
+            alpha_ci += (
+                f" (CI from {a.n_effective} of {a.n_bootstrap} bootstrap resamples; "
+                f"{a.n_bootstrap - a.n_effective} degenerate resamples dropped)"
+            )
         if d.conditioner_source == "external":
             dif_header = "## DIF (instrument-level, external conditioner)"
             notes: list[str] = []
@@ -51,8 +60,7 @@ class ReportCard:
             "# metajudge report card",
             "",
             "## Reliability",
-            f"- Krippendorff's alpha ({a.level}): {a.alpha:.3f} "
-            f"[95% CI {a.ci_low:.3f}, {a.ci_high:.3f}]",
+            alpha_ci,
             f"- ICC(2,1): {ic.icc1:.3f}; ICC(2,k): {ic.icck:.3f} "
             f"({ic.n_targets} targets x {ic.n_raters} raters)",
             "",
