@@ -95,3 +95,21 @@ def test_n_effective_counts_only_realized_resamples() -> None:
     res = krippendorff_alpha(r, level="nominal", n_bootstrap=200, seed=1)
     assert 0 < res.n_effective < res.n_bootstrap
     assert res.n_bootstrap == 200
+
+
+def test_ci_reliable_tracks_effective_count() -> None:
+    # Parity with ClusterBootstrapDif.ci_reliable: True only when enough resamples
+    # survive for a trustworthy percentile CI (the shared 100-replicate floor).
+    matrix = [
+        [1, 2, 3, 3, 2, 1, 4, 1, 2],
+        [1, 2, 3, 3, 2, 2, 4, 1, 3],
+        [1, 1, 3, 3, 2, 1, 4, 2, 2],
+    ]
+    r = _ratings_from_matrix(matrix)
+    ok = krippendorff_alpha(r, level="ordinal", n_bootstrap=500, seed=42)
+    assert ok.n_effective >= 100
+    assert ok.ci_reliable is True
+    # too few resamples for a trustworthy CI even with none dropped
+    thin = krippendorff_alpha(r, level="ordinal", n_bootstrap=50, seed=42)
+    assert thin.n_effective < 100
+    assert thin.ci_reliable is False

@@ -13,6 +13,11 @@ from metajudge.data import Ratings
 
 _LevelOfMeasurement = Literal["nominal", "ordinal", "interval", "ratio"]
 
+# Below this many realized resamples the percentile CI is too thin to trust. Kept in
+# sync with dif._MIN_EFFECTIVE so the alpha and DIF pillars apply the same reliability
+# floor and expose the same ``ci_reliable`` contract.
+_MIN_EFFECTIVE = 100
+
 
 @dataclass(frozen=True)
 class AlphaResult:
@@ -23,7 +28,7 @@ class AlphaResult:
     column draw with no ratable variation makes alpha undefined and the resample
     is dropped), in which case the CI rests on ``n_effective`` replicates, not
     ``n_bootstrap`` -- read a materially smaller ``n_effective`` as a low-precision
-    CI rather than a full-strength one.
+    CI rather than a full-strength one, or read ``ci_reliable``.
     """
 
     alpha: float
@@ -32,6 +37,17 @@ class AlphaResult:
     level: str
     n_bootstrap: int
     n_effective: int
+
+    @property
+    def ci_reliable(self) -> bool:
+        """Whether enough resamples were realized for a trustworthy percentile CI.
+
+        ``False`` when fewer than ``_MIN_EFFECTIVE`` (100) replicates survived, whether
+        because few were requested or many were dropped as degenerate: the bounds are then
+        indicative only and the point estimate ``alpha`` is the honest summary. Mirrors
+        :attr:`metajudge.dif.ClusterBootstrapDif.ci_reliable`.
+        """
+        return self.n_effective >= _MIN_EFFECTIVE
 
 
 def _alpha(matrix: NDArray[np.float64], level: str) -> float:
