@@ -27,6 +27,9 @@ htmlcov/
 # Private local agent context (canonical context is the tracked AGENTS.md)
 CLAUDE.md
 
+# Private research / white-paper working notes (not part of the published repo)
+research/
+
 # OS / editor
 # .DS_Store is covered by the machine's global excludesfile, not committed here.
 *.swp
