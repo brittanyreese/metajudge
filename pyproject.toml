@@ -5,7 +5,7 @@ description = "Audit an LLM judge/rubric instrument: reliability + DIF report ca
 readme = "README.md"
 requires-python = ">=3.11"
 license = { file = "LICENSE" }
-authors = [{ name = "metajudge contributors" }]
+authors = [{ name = "Brittany Reese" }]
 keywords = ["llm-judge", "psychometrics", "reliability", "dif", "evaluation"]
 dependencies = [
     "numpy>=1.26",
@@ -13,6 +13,12 @@ dependencies = [
     "scipy>=1.11",
     "krippendorff>=0.6",
 ]
+
+[project.urls]
+Homepage = "https://github.com/recuriax/metajudge"
+Repository = "https://github.com/recuriax/metajudge"
+Issues = "https://github.com/recuriax/metajudge/issues"
+Changelog = "https://github.com/recuriax/metajudge/blob/main/CHANGELOG.md"
 
 [build-system]
 requires = ["hatchling"]
