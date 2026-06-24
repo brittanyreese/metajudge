@@ -42,5 +42,5 @@ report card. Runtime dependencies are limited to `numpy`, `pandas`, `scipy`, and
   and DIF against R `MASS::polr` with a `statsmodels` cross-check in the two-category
   limit. `pingouin` and `statsmodels` are test oracles only, never runtime imports.
 
-[Unreleased]: https://github.com/recuriax/metajudge/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/recuriax/metajudge/releases/tag/v0.1.0
+[Unreleased]: https://github.com/breesemarkides/metajudge/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/breesemarkides/metajudge/releases/tag/v0.1.0

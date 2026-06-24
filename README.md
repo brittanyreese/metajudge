@@ -2,7 +2,7 @@
 
 Audit a scoring instrument, an LLM-as-judge or a human rater panel, before you trust its numbers.
 
-[![CI](https://github.com/recuriax/metajudge/actions/workflows/ci.yml/badge.svg)](https://github.com/recuriax/metajudge/actions/workflows/ci.yml)
+[![CI](https://github.com/breesemarkides/metajudge/actions/workflows/ci.yml/badge.svg)](https://github.com/breesemarkides/metajudge/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)
 ![Coverage](https://img.shields.io/badge/coverage-%E2%89%A595%25-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -27,7 +27,7 @@ The library ships a real corpus (SummEval expert coherence), so the example belo
 end to end on a fresh clone with no data setup:
 
 ```bash
-git clone https://github.com/recuriax/metajudge && cd metajudge
+git clone https://github.com/breesemarkides/metajudge && cd metajudge
 uv sync
 uv run python -c "from metajudge import load_demo, audit; \
 print(audit(load_demo(), focal='abstractive', reference='extractive').to_markdown())"
@@ -148,7 +148,7 @@ returns a 95% cluster-robust interval alongside the unchanged point estimate.
 Install from source (a PyPI release is not published yet):
 
 ```bash
-git clone https://github.com/recuriax/metajudge && cd metajudge
+git clone https://github.com/breesemarkides/metajudge && cd metajudge
 uv sync                # runtime deps only: numpy, pandas, scipy, krippendorff
 ```
 
