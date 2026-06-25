@@ -15,7 +15,7 @@ _RESULT_COLS = [
     "p_nonuniform",
     "nagelkerke_r2_delta",
     "dif_class",
-    "po_violation",
+    "brant_po_flag",
     "converged",
 ]
 
@@ -72,7 +72,7 @@ def _canned(
             "p_nonuniform": p_nonuniform if p_nonuniform is not None else p_total,
             "nagelkerke_r2_delta": r2 if r2 is not None else [0.0] * n,
             "dif_class": ["A"] * n,
-            "po_violation": po if po is not None else [False] * n,
+            "brant_po_flag": po if po is not None else [False] * n,
             "converged": converged,
         }
     )
@@ -108,3 +108,13 @@ def test_summarize_power_effect_and_po_rate() -> None:
     assert summary.reject_nonuniform_rate == 0.6
     assert math.isclose(summary.mean_r2_delta, float(np.mean(r2)))
     assert summary.po_flag_rate == 0.4
+
+
+def test_run_cell_converges_and_brant_flag_is_bool() -> None:
+    # Verify the engine actually runs (not swallowed as ValueError) and that the
+    # renamed brant_po_flag column exists and holds booleans.
+    params = DgpParams(n_items_per_group=60, n_raters=3)
+    df = run_cell(params, n_reps=4, base_seed=0)
+    assert "brant_po_flag" in df.columns
+    assert df["brant_po_flag"].dtype == bool
+    assert df["converged"].sum() >= 3  # at least 3 of 4 reps converge on a well-specified cell

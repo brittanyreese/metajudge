@@ -63,7 +63,7 @@ def summarize_cell(results: pd.DataFrame, *, alpha: float = 0.05) -> CellSummary
         reject_nonuniform_rate=reject_nonuniform,
         mc_se_total=mc_se,
         mean_r2_delta=float(conv["nagelkerke_r2_delta"].mean()),
-        po_flag_rate=float(conv["po_violation"].mean()),
+        po_flag_rate=float(conv["brant_po_flag"].mean()),
         alpha=alpha,
     )
 
@@ -76,7 +76,7 @@ _RESULT_COLS = [
     "p_nonuniform",
     "nagelkerke_r2_delta",
     "dif_class",
-    "po_violation",
+    "brant_po_flag",
     "converged",
 ]
 
@@ -133,7 +133,7 @@ def run_cell(
                     "p_nonuniform": np.nan,
                     "nagelkerke_r2_delta": np.nan,
                     "dif_class": "NA",
-                    "po_violation": False,
+                    "brant_po_flag": False,
                     "converged": False,
                 }
             )
@@ -147,7 +147,7 @@ def run_cell(
                     "p_nonuniform": res.p_nonuniform,
                     "nagelkerke_r2_delta": res.nagelkerke_r2_delta,
                     "dif_class": res.dif_class,
-                    "po_violation": res.po_violation,
+                    "brant_po_flag": res.po_violation,
                     "converged": res.converged,
                 }
             )
