@@ -2,6 +2,8 @@ import numpy as np
 import pytest
 from sim.dgp import FOCAL, REFERENCE, DgpParams, simulate
 
+from metajudge import brant_test
+
 
 def _analytic_category_probs(thresholds: tuple[float, ...]) -> np.ndarray:  # type: ignore[type-arg]
     # At eta = 0 the cumulative-logit category probs come straight from the thresholds.
@@ -84,3 +86,52 @@ def test_invalid_params_raise() -> None:
         )
     with pytest.raises(ValueError, match="n_raters"):
         simulate(DgpParams(n_items_per_group=10, n_raters=0), seed=1)
+
+
+def _endog_exog(sample):
+    long = sample.ratings._long
+    endog = long["score"].to_numpy().astype(int)
+    theta = sample.theta
+    trait = long["item"].map(theta).to_numpy().astype(float)
+    return endog, trait.reshape(-1, 1)
+
+
+def test_po_holds_cell_does_not_trip_brant() -> None:
+    params = DgpParams(n_items_per_group=800, n_raters=3, trait_slope=1.0, rater_sd=0.0)
+    sample = simulate(params, seed=3)
+    endog, exog = _endog_exog(sample)
+    result = brant_test(endog, exog, names=["trait"])
+    assert result.omnibus_p > 0.01  # proportional odds holds by construction
+
+
+def test_po_violation_cell_trips_brant() -> None:
+    # A strong across-cutpoint slope spread breaks proportional odds on the trait predictor.
+    params = DgpParams(
+        n_items_per_group=800, n_raters=3, trait_slope=1.0, rater_sd=0.0, po_violation=0.8
+    )
+    sample = simulate(params, seed=3)
+    endog, exog = _endog_exog(sample)
+    result = brant_test(endog, exog, names=["trait"])
+    assert result.omnibus_p < 1e-3  # strict large-N threshold (synthesis section 3)
+
+
+def test_nonuniform_dif_steepens_focal_trait_slope() -> None:
+    # b3 > 0 makes the focal group's score-vs-trait slope steeper than the reference group's.
+    params = DgpParams(
+        n_items_per_group=2000,
+        n_raters=3,
+        trait_slope=1.0,
+        rater_sd=0.0,
+        dif_nonuniform=0.8,
+    )
+    sample = simulate(params, seed=5)
+    long = sample.ratings._long
+    theta = sample.theta
+    long = long.assign(trait=long["item"].map(theta))
+
+    def _slope(frame) -> float:
+        return float(np.polyfit(frame["trait"].to_numpy(), frame["score"].to_numpy(), 1)[0])
+
+    ref_slope = _slope(long[long["stratum"] == REFERENCE])
+    foc_slope = _slope(long[long["stratum"] == FOCAL])
+    assert foc_slope > ref_slope + 0.1
