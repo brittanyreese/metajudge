@@ -80,7 +80,7 @@ def run_cell(
                     "p_uniform": np.nan,
                     "p_nonuniform": np.nan,
                     "nagelkerke_r2_delta": np.nan,
-                    "dif_class": "A",
+                    "dif_class": "NA",
                     "po_violation": False,
                     "converged": False,
                 }
