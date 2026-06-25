@@ -1,5 +1,6 @@
 import numpy as np
-from sim.dgp import DgpParams, simulate
+import pytest
+from sim.dgp import FOCAL, REFERENCE, DgpParams, simulate
 
 
 def _analytic_category_probs(thresholds: tuple[float, ...]) -> np.ndarray:  # type: ignore[type-arg]
@@ -26,3 +27,60 @@ def test_thresholds_recover_marginal_category_probs() -> None:
     empirical = counts / counts.sum()
     analytic = _analytic_category_probs(params.thresholds)
     assert np.allclose(empirical, analytic, atol=0.01)
+
+
+def _mean_score_by_item(sample) -> dict[str, float]:
+    long = sample.ratings._long
+    return long.groupby("item")["score"].mean().to_dict()
+
+
+def test_higher_trait_gives_higher_scores() -> None:
+    params = DgpParams(n_items_per_group=1500, n_raters=3, trait_slope=1.0, rater_sd=0.0)
+    sample = simulate(params, seed=11)
+    means = _mean_score_by_item(sample)
+    theta = sample.theta
+    items = list(theta)
+    order = np.argsort([theta[i] for i in items])
+    ranked = [items[k] for k in order]
+    third = len(ranked) // 3
+    low = np.mean([means[i] for i in ranked[:third]])
+    high = np.mean([means[i] for i in ranked[-third:]])
+    assert high > low + 0.5  # higher latent trait -> higher mean rating
+
+
+def test_uniform_dif_shifts_focal_scores_at_matched_trait() -> None:
+    # No impact (mu_focal = 0): focal and reference share the trait distribution, so any
+    # mean-score gap is the planted uniform DIF, not impact.
+    params = DgpParams(
+        n_items_per_group=2000, n_raters=3, trait_slope=1.0, rater_sd=0.0, dif_uniform=0.8
+    )
+    sample = simulate(params, seed=7)
+    long = sample.ratings._long
+    ref_mean = long[long["stratum"] == REFERENCE]["score"].mean()
+    foc_mean = long[long["stratum"] == FOCAL]["score"].mean()
+    assert foc_mean > ref_mean + 0.2  # positive b2 lifts focal ratings
+
+
+def test_seed_is_reproducible_and_varies() -> None:
+    params = DgpParams(n_items_per_group=50, n_raters=3)
+    a = simulate(params, seed=99)
+    b = simulate(params, seed=99)
+    c = simulate(params, seed=100)
+    assert a.ratings.wide().equals(b.ratings.wide())
+    assert a.theta == b.theta
+    assert not a.ratings.wide().equals(c.ratings.wide())
+
+
+def test_invalid_params_raise() -> None:
+    with pytest.raises(ValueError, match="thresholds must have"):
+        simulate(DgpParams(n_items_per_group=10, n_raters=2, thresholds=(1.0, 0.0)), seed=1)
+    with pytest.raises(ValueError, match="strictly decreasing"):
+        simulate(
+            DgpParams(n_items_per_group=10, n_raters=2, thresholds=(0.0, 0.0, 0.0, 0.0)), seed=1
+        )
+    with pytest.raises(ValueError, match="reliability"):
+        simulate(
+            DgpParams(n_items_per_group=10, n_raters=2, conditioner_reliability=0.0), seed=1
+        )
+    with pytest.raises(ValueError, match="n_raters"):
+        simulate(DgpParams(n_items_per_group=10, n_raters=0), seed=1)
