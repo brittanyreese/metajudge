@@ -1,6 +1,10 @@
+from typing import Any
+
 import numpy as np
+import pandas as pd
 import pytest
-from sim.dgp import FOCAL, REFERENCE, DgpParams, simulate
+from numpy.typing import NDArray
+from sim.dgp import FOCAL, REFERENCE, DgpParams, SimSample, simulate
 
 from metajudge import brant_test
 
@@ -8,8 +12,8 @@ from metajudge import brant_test
 def _analytic_category_probs(thresholds: tuple[float, ...]) -> np.ndarray:  # type: ignore[type-arg]
     # At eta = 0 the cumulative-logit category probs come straight from the thresholds.
     p_gt = 1.0 / (1.0 + np.exp(-np.asarray(thresholds, dtype=float)))  # P(X > level_k)
-    upper = np.concatenate([[1.0], p_gt])  # P(X > level_{k-1})
-    lower = np.concatenate([p_gt, [0.0]])  # P(X > level_k)
+    upper = np.concatenate([[1.0], p_gt])  # type: ignore[reportUnknownMemberType]
+    lower = np.concatenate([p_gt, [0.0]])  # type: ignore[reportUnknownMemberType]
     return upper - lower  # type: ignore[return-value]
 
 
@@ -24,26 +28,28 @@ def test_thresholds_recover_marginal_category_probs() -> None:
         mu_focal=0.0,
     )
     sample = simulate(params, seed=20260624)
-    scores = sample.ratings._long["score"].to_numpy()  # (test-only inspection of private attr)
-    counts = np.bincount(scores, minlength=params.n_categories + 1)[1:]
+    scores = sample.ratings._long["score"].to_numpy()  # type: ignore[reportPrivateUsage]
+    counts = np.bincount(scores, minlength=params.n_categories + 1)[1:]  # type: ignore[reportUnknownMemberType]
     empirical = counts / counts.sum()
     analytic = _analytic_category_probs(params.thresholds)
-    assert np.allclose(empirical, analytic, atol=0.01)
+    assert np.allclose(empirical, analytic, atol=0.01)  # type: ignore[reportUnknownMemberType]
 
 
-def _mean_score_by_item(sample) -> dict[str, float]:
-    long = sample.ratings._long
-    return long.groupby("item")["score"].mean().to_dict()
+def _mean_score_by_item(sample: SimSample) -> dict[str, float]:
+    long = sample.ratings._long  # type: ignore[reportPrivateUsage]
+    return long.groupby("item")["score"].mean().to_dict()  # type: ignore[return-value]
 
 
 def test_higher_trait_gives_higher_scores() -> None:
     params = DgpParams(n_items_per_group=1500, n_raters=3, trait_slope=1.0, rater_sd=0.0)
     sample = simulate(params, seed=11)
     means = _mean_score_by_item(sample)
-    theta = sample.theta
+    theta: dict[str, float] = dict(sample.theta)  # type: ignore[misc]
     items = list(theta)
-    order = np.argsort([theta[i] for i in items])
-    ranked = [items[k] for k in order]
+    order: np.ndarray[Any, np.dtype[np.intp]] = np.argsort(  # type: ignore[reportUnknownMemberType]
+        [theta[i] for i in items]
+    )
+    ranked = [items[int(k)] for k in order]
     third = len(ranked) // 3
     low = np.mean([means[i] for i in ranked[:third]])
     high = np.mean([means[i] for i in ranked[-third:]])
@@ -57,7 +63,7 @@ def test_uniform_dif_shifts_focal_scores_at_matched_trait() -> None:
         n_items_per_group=2000, n_raters=3, trait_slope=1.0, rater_sd=0.0, dif_uniform=0.8
     )
     sample = simulate(params, seed=7)
-    long = sample.ratings._long
+    long = sample.ratings._long  # type: ignore[reportPrivateUsage]
     ref_mean = long[long["stratum"] == REFERENCE]["score"].mean()
     foc_mean = long[long["stratum"] == FOCAL]["score"].mean()
     assert foc_mean > ref_mean + 0.2  # positive b2 lifts focal ratings
@@ -88,8 +94,8 @@ def test_invalid_params_raise() -> None:
         simulate(DgpParams(n_items_per_group=10, n_raters=0), seed=1)
 
 
-def _endog_exog(sample):
-    long = sample.ratings._long
+def _endog_exog(sample: SimSample) -> tuple[NDArray[np.int_], NDArray[np.float64]]:
+    long = sample.ratings._long  # type: ignore[reportPrivateUsage]
     endog = long["score"].to_numpy().astype(int)
     theta = sample.theta
     trait = long["item"].map(theta).to_numpy().astype(float)
@@ -125,11 +131,11 @@ def test_nonuniform_dif_steepens_focal_trait_slope() -> None:
         dif_nonuniform=0.8,
     )
     sample = simulate(params, seed=5)
-    long = sample.ratings._long
+    long = sample.ratings._long  # type: ignore[reportPrivateUsage]
     theta = sample.theta
     long = long.assign(trait=long["item"].map(theta))
 
-    def _slope(frame) -> float:
+    def _slope(frame: pd.DataFrame) -> float:
         return float(np.polyfit(frame["trait"].to_numpy(), frame["score"].to_numpy(), 1)[0])
 
     ref_slope = _slope(long[long["stratum"] == REFERENCE])
