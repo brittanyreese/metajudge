@@ -141,3 +141,25 @@ def test_nonuniform_dif_steepens_focal_trait_slope() -> None:
     ref_slope = _slope(long[long["stratum"] == REFERENCE])
     foc_slope = _slope(long[long["stratum"] == FOCAL])
     assert foc_slope > ref_slope + 0.1
+
+
+@pytest.mark.parametrize("target", [0.5, 0.8])
+def test_conditioner_reliability_is_realized(target: float) -> None:
+    # Reliability = var(theta) / var(conditioner); the emitted conditioner adds noise to
+    # theta so its realized reliability matches the target within Monte-Carlo error.
+    params = DgpParams(
+        n_items_per_group=6000, n_raters=1, conditioner_reliability=target
+    )
+    sample = simulate(params, seed=2024)
+    items = list(sample.theta)
+    th = np.asarray([sample.theta[i] for i in items])
+    cond = np.asarray([sample.conditioner[i] for i in items])
+    realized = float(np.var(th) / np.var(cond))
+    assert abs(realized - target) < 0.04
+
+
+def test_conditioner_is_exactly_theta_at_reliability_one() -> None:
+    params = DgpParams(n_items_per_group=200, n_raters=1, conditioner_reliability=1.0)
+    sample = simulate(params, seed=1)
+    for item, th in sample.theta.items():
+        assert sample.conditioner[item] == th  # no noise when reliability == 1
