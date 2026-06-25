@@ -55,5 +55,19 @@ def band_calibration_cells(n_items_per_group: int = 100, n_raters: int = 3) -> l
 def conditioner_comparison_cells(
     n_items_per_group: int = 100, n_raters: int = 3
 ) -> list[DgpParams]:
-    """Null cells with varying impact for external vs. rest-score conditioner comparison."""
-    raise NotImplementedError
+    """Null cells (dif_uniform=0) at three impact levels for conditioner type comparison.
+
+    Each cell is run twice: once with conditioner='external' and once with
+    conditioner='rest_score'. Under impact, the rest-score conditioner is contaminated
+    (focal group scores lower across items, not due to DIF), inflating the Type-I rate.
+    """
+    base: dict[str, Any] = {
+        "n_items_per_group": n_items_per_group,
+        "n_raters": n_raters,
+        "dif_uniform": 0.0,
+    }
+    return [
+        DgpParams(**base, mu_focal=0.0),  # 0: no impact (reference condition)
+        DgpParams(**base, mu_focal=-0.5),  # 1: moderate impact
+        DgpParams(**base, mu_focal=-1.0),  # 2: large impact
+    ]

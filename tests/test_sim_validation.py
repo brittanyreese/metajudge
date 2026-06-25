@@ -132,3 +132,40 @@ def test_band_strong_dif_reaches_C_band() -> None:
     assert summary.mean_r2_delta > 0.070, (
         f"Strong DIF mean_r2_delta={summary.mean_r2_delta:.4f} did not reach C-band (> 0.070)"
     )
+
+
+def test_external_conditioner_controls_type1_under_impact_quick() -> None:
+    """External conditioner must hold Type-I < 0.15 even under large impact (n_reps=30)."""
+    params = DgpParams(n_items_per_group=100, n_raters=3, mu_focal=-1.0, dif_uniform=0.0)
+    df = run_cell(params, n_reps=30, base_seed=20260625, conditioner="external")
+    summary = summarize_cell(df)
+    assert summary.reject_total_rate < 0.15, (
+        f"External conditioner Type-I={summary.reject_total_rate:.3f} exceeds 0.15 under impact"
+    )
+
+
+@pytest.mark.slow
+def test_rest_score_inflates_type1_under_impact_full() -> None:
+    """Under large impact (mu_focal=-1.0), rest-score conditioner inflates Type-I above external."""
+    params = DgpParams(n_items_per_group=100, n_raters=3, mu_focal=-1.0, dif_uniform=0.0)
+    df_external = run_cell(params, n_reps=200, base_seed=20260625, conditioner="external")
+    df_rest = run_cell(params, n_reps=200, base_seed=20260625, conditioner="rest_score")
+    ext_rate = summarize_cell(df_external).reject_total_rate
+    rest_rate = summarize_cell(df_rest).reject_total_rate
+    assert rest_rate > ext_rate, (
+        f"rest_score Type-I={rest_rate:.3f} not > external Type-I={ext_rate:.3f} under impact"
+    )
+
+
+@pytest.mark.slow
+def test_external_conditioner_type1_full_impact_grid() -> None:
+    """External conditioner must hold Type-I in [0.025, 0.075] at all impact levels (n_reps=400)."""
+    for idx, params in enumerate(conditioner_comparison_cells()):
+        df = run_cell(
+            params, n_reps=400, base_seed=20260625 + idx * 100_000, conditioner="external"
+        )
+        summary = summarize_cell(df)
+        assert 0.025 <= summary.reject_total_rate <= 0.075, (
+            f"External conditioner Type-I out of [0.025, 0.075] at mu_focal={params.mu_focal}: "
+            f"{summary.reject_total_rate:.3f}"
+        )
