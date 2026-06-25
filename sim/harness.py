@@ -9,7 +9,7 @@ from dataclasses import asdict, dataclass
 import numpy as np
 import pandas as pd
 
-from metajudge import logistic_dif
+from metajudge import ClusterBootstrapDif, cluster_bootstrap_dif, logistic_dif
 from sim.dgp import FOCAL, REFERENCE, DgpParams, simulate
 
 _CELL_SEED_STRIDE = 100_000  # keeps each cell's per-rep seed block disjoint
@@ -197,3 +197,100 @@ def run_grid(
             cell_df[field] = [value] * len(cell_df)
         parts.append(cell_df)
     return pd.concat(parts, ignore_index=True)
+
+
+_BOOTSTRAP_COLS = [
+    "rep",
+    "seed",
+    "r2_ci_low",
+    "r2_ci_high",
+    "chi2_ci_low",
+    "chi2_ci_high",
+    "ci_reliable",
+    "n_effective",
+    "base_converged",
+]
+
+
+def run_cell_bootstrap(
+    params: DgpParams,
+    *,
+    n_reps: int,
+    n_boot: int,
+    base_seed: int,
+    ci_level: float = 0.95,
+    conditioner: str = "external",
+) -> pd.DataFrame:
+    """Replicate one cell through ``cluster_bootstrap_dif``.
+
+    Each replication draws a fresh :class:`~sim.dgp.SimSample` and calls
+    :func:`~metajudge.cluster_bootstrap_dif`. Non-identifiable draws (``ValueError``) are
+    recorded with ``NaN`` CI bounds and ``ci_reliable=False`` rather than aborting.
+
+    Parameters
+    ----------
+    params:
+        DGP cell specification.
+    n_reps:
+        Number of outer Monte Carlo replications.
+    n_boot:
+        Bootstrap draws per replication, passed to ``cluster_bootstrap_dif``.
+    base_seed:
+        Seed for the first replication; subsequent reps use ``base_seed + rep``.
+    ci_level:
+        Confidence level for the percentile CI (default 0.95).
+    conditioner:
+        ``"external"`` passes the simulated external score; ``"rest_score"`` passes
+        ``None`` so ``cluster_bootstrap_dif`` uses its own rest-score fallback.
+
+    Returns
+    -------
+    pd.DataFrame
+        One row per replication with columns in ``_BOOTSTRAP_COLS``.
+    """
+    if conditioner not in ("external", "rest_score"):
+        raise ValueError("conditioner must be 'external' or 'rest_score'")
+    rows: list[dict[str, object]] = []
+    for rep in range(n_reps):
+        seed = base_seed + rep
+        sample = simulate(params, seed=seed)
+        cond = sample.conditioner if conditioner == "external" else None
+        try:
+            result: ClusterBootstrapDif = cluster_bootstrap_dif(
+                sample.ratings,
+                focal=FOCAL,
+                reference=REFERENCE,
+                conditioner=cond,
+                n_boot=n_boot,
+                seed=seed,
+                ci=ci_level,
+            )
+        except ValueError:
+            rows.append(
+                {
+                    "rep": rep,
+                    "seed": seed,
+                    "r2_ci_low": float("nan"),
+                    "r2_ci_high": float("nan"),
+                    "chi2_ci_low": float("nan"),
+                    "chi2_ci_high": float("nan"),
+                    "ci_reliable": False,
+                    "n_effective": 0,
+                    "base_converged": False,
+                }
+            )
+        else:
+            rows.append(
+                {
+                    "rep": rep,
+                    "seed": seed,
+                    "r2_ci_low": result.r2_delta_ci_low,
+                    "r2_ci_high": result.r2_delta_ci_high,
+                    "chi2_ci_low": result.chi2_total_ci_low,
+                    "chi2_ci_high": result.chi2_total_ci_high,
+                    "ci_reliable": result.ci_reliable,
+                    "n_effective": result.n_effective,
+                    "base_converged": result.base.converged,
+                }
+            )
+    return pd.DataFrame(rows, columns=_BOOTSTRAP_COLS)

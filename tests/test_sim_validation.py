@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 from sim.dgp import DgpParams
-from sim.harness import run_cell, summarize_cell
+from sim.harness import run_cell, run_cell_bootstrap, summarize_cell
 from sim.validation import band_calibration_cells, conditioner_comparison_cells, type1_power_cells
 
 
@@ -169,3 +169,60 @@ def test_external_conditioner_type1_full_impact_grid() -> None:
             f"External conditioner Type-I out of [0.025, 0.075] at mu_focal={params.mu_focal}: "
             f"{summary.reject_total_rate:.3f}"
         )
+
+
+def test_bootstrap_ci_smoke_h0() -> None:
+    """Under H0, run_cell_bootstrap must produce ci_reliable=True for converged reps (n_reps=5)."""
+    params = DgpParams(n_items_per_group=100, n_raters=3)
+    df = run_cell_bootstrap(params, n_reps=5, n_boot=200, base_seed=20260625)
+    assert list(df.columns) == [
+        "rep",
+        "seed",
+        "r2_ci_low",
+        "r2_ci_high",
+        "chi2_ci_low",
+        "chi2_ci_high",
+        "ci_reliable",
+        "n_effective",
+        "base_converged",
+    ]
+    assert len(df) == 5
+    conv = df[df["base_converged"]]
+    assert len(conv) >= 4
+    assert conv["ci_reliable"].all()
+
+
+@pytest.mark.slow
+def test_bootstrap_ci_false_pos_rate_h0() -> None:
+    """Under H0, CI-based false-positive rate (CI_low > 0.005) must be <= 0.12 (n_reps=100).
+
+    The 95% CI excludes zero in at most 12% of reliable reps under the null; this
+    corresponds to a nominal 5% false-positive rate with a 2-binomial-SE margin of
+    sqrt(0.05 * 0.95 / 100) = 0.022, rounded to the nearest 0.01 (giving 0.10 + 0.02 = 0.12).
+    """
+    params = DgpParams(n_items_per_group=100, n_raters=3)
+    df = run_cell_bootstrap(params, n_reps=100, n_boot=200, base_seed=20260625)
+    reliable = df[df["ci_reliable"] & df["base_converged"]]
+    assert len(reliable) >= 90, f"Too few reliable reps: {len(reliable)}/100"
+    false_pos_rate = float((reliable["r2_ci_low"] > 0.005).mean())
+    assert false_pos_rate <= 0.12, (
+        f"Bootstrap CI false-positive rate={false_pos_rate:.3f} exceeds 0.12 under H0"
+    )
+
+
+@pytest.mark.slow
+def test_bootstrap_ci_power_strong_dif() -> None:
+    """At dif_uniform=1.5, CI_low > 0.005 in >= 0.70 of reliable reps (n_reps=100).
+
+    The CI-based power must match or approach the p-value-based power from the Type-I/power
+    grid study. A bootstrap CI that is far less powerful than the analytic test would indicate
+    the CI resampling is discarding too many draws.
+    """
+    params = DgpParams(n_items_per_group=100, n_raters=3, dif_uniform=1.5)
+    df = run_cell_bootstrap(params, n_reps=100, n_boot=200, base_seed=20260625)
+    reliable = df[df["ci_reliable"] & df["base_converged"]]
+    assert len(reliable) >= 90, f"Too few reliable reps: {len(reliable)}/100"
+    detect_rate = float((reliable["r2_ci_low"] > 0.005).mean())
+    assert detect_rate >= 0.70, (
+        f"Bootstrap CI power={detect_rate:.3f} below 0.70 at dif_uniform=1.5"
+    )
