@@ -10,13 +10,12 @@ or MASS is unavailable. Mirrors scripts/oracles/gen_olr_oracle.py.
 from __future__ import annotations
 
 import csv
+import math
 import shutil
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
-
-import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -76,7 +75,7 @@ def main() -> int:
     bad = {
         k: recovered.get(k)
         for k in planted
-        if abs(recovered.get(k, np.inf) - planted[k]) > _TOL
+        if abs(recovered.get(k, math.inf) - planted[k]) > _TOL
     }
     if bad:
         print(f"recovery outside tolerance {_TOL}: planted={planted} recovered={recovered}")

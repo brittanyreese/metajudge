@@ -104,7 +104,7 @@ def _load_test_constants() -> dict[str, object]:
 def _verify_quality_seed(quality: list[float]) -> None:
     """The conditioner fixture must be regenerable from its documented seed."""
     regenerated = np.random.default_rng(_SEED).normal(size=len(quality))
-    if not np.allclose(regenerated, quality, atol=1e-6):
+    if not np.allclose(regenerated, quality, atol=1e-6):  # pyright: ignore[reportUnknownMemberType]
         raise SystemExit(
             "FAIL: _QUALITY is not reproduced by default_rng(20260622).normal"
             f"(size={len(quality)}); the fixture seed in tests/test_dif.py is stale."
@@ -190,8 +190,8 @@ def _compare(label: str, expected: dict[str, float], got: dict[str, float]) -> b
 
 def main() -> int:
     constants = _load_test_constants()
-    quality = list(constants["_QUALITY"])  # type: ignore[call-overload]
-    scores = list(constants["_SCORES"])  # type: ignore[call-overload]
+    quality: list[float] = list(constants["_QUALITY"])  # type: ignore[call-overload]
+    scores: list[int] = list(constants["_SCORES"])  # type: ignore[call-overload]
     n_items = int(constants["_N_ITEMS"])  # type: ignore[call-overload]
     n_raters = int(constants["_N_RATERS"])  # type: ignore[call-overload]
 
