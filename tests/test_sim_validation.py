@@ -73,3 +73,62 @@ def test_power_nonuniform_full() -> None:
     assert summary.reject_nonuniform_rate > 0.50, (
         f"Nonuniform power={summary.reject_nonuniform_rate:.3f} below 0.50"
     )
+
+
+def test_band_null_r2_in_A_band() -> None:
+    """Under H0 (no DIF), mean R2_delta must stay below the A-band threshold 0.035."""
+    params = DgpParams(n_items_per_group=100, n_raters=3, dif_uniform=0.0)
+    df = run_cell(params, n_reps=30, base_seed=20260625)
+    summary = summarize_cell(df)
+    assert summary.mean_r2_delta < 0.035, (
+        f"Null mean_r2_delta={summary.mean_r2_delta:.4f} is not in A-band (< 0.035)"
+    )
+
+
+def test_band_r2_increases_with_dif() -> None:
+    """Mean R2_delta at dif_uniform=1.5 must exceed mean R2_delta at dif_uniform=0."""
+    r2_null = summarize_cell(
+        run_cell(
+            DgpParams(n_items_per_group=100, n_raters=3, dif_uniform=0.0),
+            n_reps=30,
+            base_seed=20260625,
+        )
+    ).mean_r2_delta
+    r2_strong = summarize_cell(
+        run_cell(
+            DgpParams(n_items_per_group=100, n_raters=3, dif_uniform=1.5),
+            n_reps=30,
+            base_seed=20260625,
+        )
+    ).mean_r2_delta
+    assert r2_strong > r2_null, f"R2 did not increase: null={r2_null:.4f} strong={r2_strong:.4f}"
+
+
+@pytest.mark.slow
+def test_band_r2_strict_monotone_full() -> None:
+    """Mean R2_delta must be strictly increasing across all six band calibration cells.
+
+    Uses n_reps=200 per cell.
+    """
+    cells = band_calibration_cells()
+    r2_values: list[float] = []
+    for idx, params in enumerate(cells):
+        df = run_cell(params, n_reps=200, base_seed=20260625 + idx * 100_000)
+        r2_values.append(summarize_cell(df).mean_r2_delta)
+    for i in range(len(r2_values) - 1):
+        assert r2_values[i] < r2_values[i + 1], (
+            f"R2 not strictly monotone at step {i}: "
+            f"dif={cells[i].dif_uniform} R2={r2_values[i]:.4f} >= "
+            f"dif={cells[i + 1].dif_uniform} R2={r2_values[i + 1]:.4f}"
+        )
+
+
+@pytest.mark.slow
+def test_band_strong_dif_reaches_C_band() -> None:
+    """At dif_uniform=1.5, mean R2_delta must exceed the C-band threshold 0.070 (n_reps=200)."""
+    params = DgpParams(n_items_per_group=100, n_raters=3, dif_uniform=1.50)
+    df = run_cell(params, n_reps=200, base_seed=20260625)
+    summary = summarize_cell(df)
+    assert summary.mean_r2_delta > 0.070, (
+        f"Strong DIF mean_r2_delta={summary.mean_r2_delta:.4f} did not reach C-band (> 0.070)"
+    )
