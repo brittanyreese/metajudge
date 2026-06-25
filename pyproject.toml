@@ -46,19 +46,20 @@ packages = ["src/metajudge"]
 
 [tool.ruff]
 line-length = 100
-src = ["src", "tests"]
+src = ["src", "tests", "sim"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 
 [tool.pyright]
-include = ["src", "tests"]
+include = ["src", "tests", "sim"]
 typeCheckingMode = "strict"
 pythonVersion = "3.11"
 
 [tool.pytest.ini_options]
 addopts = "-q --cov=metajudge --cov-report=term-missing --cov-fail-under=95"
 testpaths = ["tests"]
+pythonpath = ["."]
 
 # Local development tooling. PEP 735 dependency groups are not published to PyPI
 # and are installed by default by `uv run` and `uv sync`, so `uv run pytest`
