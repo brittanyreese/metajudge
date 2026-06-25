@@ -1,7 +1,6 @@
 """Pre-canned study grid factories for DIF validation studies (Plan 3).
 
 Each factory returns the list of DgpParams cells that define one study's design.
-Implementations land in Tasks 2-4; stubs allow Task 1's import test to pass first.
 """
 
 from __future__ import annotations

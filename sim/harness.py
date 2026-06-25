@@ -262,7 +262,7 @@ def run_cell_bootstrap(
                 reference=REFERENCE,
                 conditioner=cond,
                 n_boot=n_boot,
-                seed=seed,
+                seed=seed + 1_000_000,
                 ci=ci_level,
             )
         except ValueError:

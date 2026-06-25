@@ -196,9 +196,9 @@ def test_bootstrap_ci_smoke_h0() -> None:
 def test_bootstrap_ci_false_pos_rate_h0() -> None:
     """Under H0, CI-based false-positive rate (CI_low > 0.005) must be <= 0.12 (n_reps=100).
 
-    The 95% CI excludes zero in at most 12% of reliable reps under the null; this
-    corresponds to a nominal 5% false-positive rate with a 2-binomial-SE margin of
-    sqrt(0.05 * 0.95 / 100) = 0.022, rounded to the nearest 0.01 (giving 0.10 + 0.02 = 0.12).
+    At n_reps=100 with true rate 0.05, the binomial SE is sqrt(0.05*0.95/100) = 0.022.
+    The bound 0.12 is nominal + 3 SE: 0.05 + 3*0.022 = 0.116, rounded to 0.12.
+    This provides a very conservative guard that absorbs Monte Carlo noise.
     """
     params = DgpParams(n_items_per_group=100, n_raters=3)
     df = run_cell_bootstrap(params, n_reps=100, n_boot=200, base_seed=20260625)
