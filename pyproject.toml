@@ -47,6 +47,7 @@ packages = ["src/metajudge"]
 [tool.ruff]
 line-length = 100
 src = ["src", "tests", "sim"]
+exclude = ["*.R"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
