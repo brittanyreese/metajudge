@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 
 import numpy as np
 import pandas as pd
@@ -13,6 +13,60 @@ from metajudge import logistic_dif
 from sim.dgp import FOCAL, REFERENCE, DgpParams, simulate
 
 _CELL_SEED_STRIDE = 100_000  # keeps each cell's per-rep seed block disjoint
+
+
+@dataclass(frozen=True)
+class CellSummary:
+    """Operating characteristics of one cell, computed over converged replications."""
+
+    n_reps: int
+    n_converged: int
+    reject_total_rate: float
+    reject_uniform_rate: float
+    reject_nonuniform_rate: float
+    mc_se_total: float
+    mean_r2_delta: float
+    po_flag_rate: float
+    alpha: float
+
+
+def summarize_cell(results: pd.DataFrame, *, alpha: float = 0.05) -> CellSummary:
+    """Rejection rates, power, Monte-Carlo SE, and mean effect size for one cell.
+
+    Rates are over converged replications only; a cell with no converged draw returns
+    NaN rates. ``mc_se_total`` is the binomial SE of the total-DIF rejection rate.
+    """
+    n_reps = len(results)
+    conv = results[results["converged"]]
+    n_conv = len(conv)
+    if n_conv == 0:
+        return CellSummary(
+            n_reps=n_reps,
+            n_converged=0,
+            reject_total_rate=float("nan"),
+            reject_uniform_rate=float("nan"),
+            reject_nonuniform_rate=float("nan"),
+            mc_se_total=float("nan"),
+            mean_r2_delta=float("nan"),
+            po_flag_rate=float("nan"),
+            alpha=alpha,
+        )
+    reject_total = float((conv["p_total"] < alpha).mean())
+    reject_uniform = float((conv["p_uniform"] < alpha).mean())
+    reject_nonuniform = float((conv["p_nonuniform"] < alpha).mean())
+    mc_se = float(np.sqrt(reject_total * (1.0 - reject_total) / n_conv))
+    return CellSummary(
+        n_reps=n_reps,
+        n_converged=n_conv,
+        reject_total_rate=reject_total,
+        reject_uniform_rate=reject_uniform,
+        reject_nonuniform_rate=reject_nonuniform,
+        mc_se_total=mc_se,
+        mean_r2_delta=float(conv["nagelkerke_r2_delta"].mean()),
+        po_flag_rate=float(conv["po_violation"].mean()),
+        alpha=alpha,
+    )
+
 
 _RESULT_COLS = [
     "rep",
@@ -68,9 +122,7 @@ def run_cell(
         sample = simulate(params, seed=seed)
         cond = sample.conditioner if conditioner == "external" else None
         try:
-            res = logistic_dif(
-                sample.ratings, focal=FOCAL, reference=REFERENCE, conditioner=cond
-            )
+            res = logistic_dif(sample.ratings, focal=FOCAL, reference=REFERENCE, conditioner=cond)
         except ValueError:
             rows.append(
                 {
