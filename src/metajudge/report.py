@@ -47,8 +47,18 @@ class ReportCard:
                 "instrument-level bias.",
                 "",
             ]
-        # The convergence warning and the panel-relative note sit ABOVE the statistics so a
-        # reader who excerpts the headline numbers cannot drop them.
+        # The convergence warning, the proportional-odds warning, and the panel-relative
+        # note all sit ABOVE the statistics so a reader who excerpts the headline numbers
+        # cannot drop them.
+        if d.po_violation:
+            notes = [
+                "> WARNING: the proportional-odds assumption is violated (Brant test); "
+                "the nonuniform-DIF test below may be unreliable, because a "
+                "non-proportional response pattern can imitate a group x trait interaction "
+                "(Harrell, 2015, Ch. 13).",
+                "",
+                *notes,
+            ]
         if not d.converged:
             notes = [
                 "> WARNING: the DIF model fit did not converge; the chi-square statistics "

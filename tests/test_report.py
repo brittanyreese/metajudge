@@ -30,6 +30,7 @@ def _card(*, converged: bool, conditioner_source: str = "rest_score") -> ReportC
         reference_level="ref",
         focal_level="foc",
         converged=converged,
+        po_violation=False,
     )
     return ReportCard(alpha=alpha, icc=ic, dif=dif)
 
@@ -50,6 +51,7 @@ def _card_with_alpha(alpha: AlphaResult) -> ReportCard:
         reference_level="ref",
         focal_level="foc",
         converged=True,
+        po_violation=False,
     )
     return ReportCard(alpha=alpha, icc=icc_result, dif=dif)
 
@@ -203,3 +205,14 @@ def test_markdown_omits_caveat_when_all_replicates_realized() -> None:
     md = _card_with_alpha(alpha).to_markdown()
     # No drop warning: the realized count equals the requested count.
     assert "of 1000" not in md
+
+
+def test_report_warns_on_po_violation() -> None:
+    from dataclasses import replace
+
+    card = _card(converged=True)
+    assert "proportional-odds" not in card.to_markdown().lower()
+
+    violated = replace(card, dif=replace(card.dif, po_violation=True))
+    md = violated.to_markdown()
+    assert "proportional-odds" in md.lower()

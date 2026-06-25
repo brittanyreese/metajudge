@@ -28,6 +28,7 @@ from scipy.special import expit  # type: ignore[import-untyped]
 from scipy.stats import chi2  # type: ignore[import-untyped]
 
 from metajudge.data import Ratings
+from metajudge.diagnostics import brant_test
 
 # Jodoin & Gierl (2001) Nagelkerke R-squared change thresholds.
 _JG_NEGLIGIBLE = 0.035
@@ -51,6 +52,7 @@ class DifResult:
     reference_level: str
     focal_level: str
     converged: bool
+    po_violation: bool
 
 
 def _classify_jodoin_gierl(r2_delta: float) -> str:
@@ -160,6 +162,7 @@ class _DifStats:
     nagelkerke_r2_delta: float
     n_obs: int
     converged: bool
+    po_violation: bool
 
 
 def _emit_item_rows(
@@ -204,6 +207,7 @@ def _dif_stats(
     cond_rows: list[float],
     *,
     want_split: bool,
+    po_alpha: float = 1e-3,
 ) -> _DifStats:
     """Fit the nested proportional-odds models and return the DIF statistics.
 
@@ -270,6 +274,7 @@ def _dif_stats(
             nagelkerke_r2_delta=r2_delta,
             n_obs=n,
             converged=c1 and c3 and ok_total,
+            po_violation=False,
         )
 
     # The three statistics are a telescoping nested decomposition: pre-clamp,
@@ -279,6 +284,17 @@ def _dif_stats(
     ll2, c2 = _fit_proportional_odds(endog, x2)
     chi2_uniform, ok_uniform = _lr_chi2(ll1, ll2)
     chi2_nonuniform, ok_nonuniform = _lr_chi2(ll2, ll3)
+
+    # PO diagnostic on the full M3 design. A proportional-odds violation can be absorbed
+    # into the group x conditioner interaction and misread as nonuniform DIF, so it is
+    # flagged. Advisory only: the Brant test is oversensitive at large N (Harrell 2015,
+    # Ch. 13), so po_alpha defaults strict (1e-3). Failures to fit leave the flag off.
+    try:
+        brant = brant_test(endog, x3, names=["cond", "group", "cond_group"])
+        po_violation = bool(brant.converged and brant.omnibus_p < po_alpha)
+    except (np.linalg.LinAlgError, ValueError):
+        po_violation = False
+
     return _DifStats(
         chi2_total=chi2_total,
         chi2_uniform=chi2_uniform,
@@ -286,6 +302,7 @@ def _dif_stats(
         nagelkerke_r2_delta=r2_delta,
         n_obs=n,
         converged=c1 and c2 and c3 and ok_total and ok_uniform and ok_nonuniform,
+        po_violation=po_violation,
     )
 
 
@@ -295,6 +312,7 @@ def logistic_dif(
     focal: str,
     reference: str,
     conditioner: Mapping[Hashable, float] | None = None,
+    po_alpha: float = 1e-3,
 ) -> DifResult:
     """Ordinal logistic-regression DIF of ``focal`` vs ``reference``.
 
@@ -361,7 +379,7 @@ def logistic_dif(
             cond_rows=cond_rows,
         )
 
-    stats = _dif_stats(scores, groups, cond_rows, want_split=True)
+    stats = _dif_stats(scores, groups, cond_rows, want_split=True, po_alpha=po_alpha)
 
     return DifResult(
         chi2_total=stats.chi2_total,
@@ -377,6 +395,7 @@ def logistic_dif(
         reference_level=reference,
         focal_level=focal,
         converged=stats.converged,
+        po_violation=stats.po_violation,
     )
 
 

@@ -602,3 +602,37 @@ def test_cluster_bootstrap_bounds_are_stable() -> None:
     assert res.r2_delta_ci_high == pytest.approx(0.1485152604131145, abs=1e-6)
     assert res.chi2_total_ci_low == pytest.approx(9.028882920867858, abs=1e-6)
     assert res.chi2_total_ci_high == pytest.approx(40.180517271142136, abs=1e-6)
+
+
+def test_logistic_dif_po_violation_responds_to_alpha() -> None:
+    """The flag reflects the Brant computation and the alpha knob, not a constant.
+
+    po_alpha=1.0 flags any fitted model (omnibus_p < 1.0); po_alpha=0.0 never flags
+    (no p-value is below 0). A flag that moved with neither would be hardcoded.
+    """
+    import numpy as np
+    import pandas as pd
+
+    from metajudge.data import Ratings
+    from metajudge.dif import logistic_dif
+
+    rng = np.random.default_rng(11)
+    rows: list[dict[str, object]] = []
+    for item in range(120):
+        stratum = "focal" if item % 2 == 0 else "reference"
+        q = rng.standard_normal()
+        for rater in range(3):
+            p_lo = 1.0 / (1.0 + np.exp(-(1.2 - 0.1 * q)))
+            p_hi = 1.0 / (1.0 + np.exp(-(-1.1 - 2.0 * q)))
+            u = rng.random()
+            score = 1 + int(u > p_lo) + int(u > p_hi)
+            rows.append({"item": item, "rater": rater, "score": score, "stratum": stratum})
+    ratings = Ratings.from_long(
+        pd.DataFrame(rows), item="item", rater="rater", score="score", stratum="stratum"
+    )
+
+    strict = logistic_dif(ratings, focal="focal", reference="reference", po_alpha=1.0)
+    never = logistic_dif(ratings, focal="focal", reference="reference", po_alpha=0.0)
+    assert isinstance(strict.po_violation, bool)
+    assert strict.po_violation is True
+    assert never.po_violation is False
