@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = { file = "LICENSE" }
 authors = [
-    { name = "Brittany Reese Markides", email = "12763491+breesemarkides@users.noreply.github.com" },
+    { name = "Brittany Reese Markides", email = "12763491+brittanyreese@users.noreply.github.com" },
 ]
 keywords = ["llm-judge", "psychometrics", "reliability", "dif", "evaluation"]
 classifiers = [
@@ -28,10 +28,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/breesemarkides/metajudge"
-Repository = "https://github.com/breesemarkides/metajudge"
-Issues = "https://github.com/breesemarkides/metajudge/issues"
-Changelog = "https://github.com/breesemarkides/metajudge/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/brittanyreese/metajudge"
+Repository = "https://github.com/brittanyreese/metajudge"
+Issues = "https://github.com/brittanyreese/metajudge/issues"
+Changelog = "https://github.com/brittanyreese/metajudge/blob/main/CHANGELOG.md"
 
 [build-system]
 requires = ["hatchling"]
