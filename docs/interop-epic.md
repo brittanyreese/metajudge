@@ -1,27 +1,14 @@
 # Interop: auditing an Epic evaluation-instruments judge
 
-Epic's [`evaluation-instruments`](https://github.com/epic-open-source/evaluation-instruments)
-is a judge runner: it takes clinical text and a rubric (PDSQI-9, the 5 C's, and others)
-and returns an LLM's scores per sample per criterion through `post.frame_from_evals`.
-metajudge is the auditor: it takes those scores and reports whether the judge instrument
-is reliable and whether it functions differently across a stratum. The two compose
-directly.
+Epic's [`evaluation-instruments`](https://github.com/epic-open-source/evaluation-instruments) is a judge runner: it takes clinical text and a rubric (PDSQI-9, the 5 C's, and others) and returns an LLM's scores per sample per criterion through `post.frame_from_evals`. metajudge is the auditor: it takes those scores and reports whether the judge instrument is reliable and whether it functions differently across a stratum. The two compose directly.
 
 ## The seam
 
-`Ratings.from_eval_instruments` maps one `frame_from_evals` output per judge into the
-long-format `Ratings` that the audit pillars consume. The measurement frame is
-rater = judge, item = evaluated sample, score = one rubric criterion. Rubric criteria
-are a separate facet, audited one at a time, never treated as raters; the cited
-reasoning is in the [interop ADR](decisions/2026-06-23-e07-eval-instruments-interop.md).
-metajudge consumes only the DataFrame, so it never imports Epic and adds no dependency.
+`Ratings.from_eval_instruments` maps one `frame_from_evals` output per judge into the long-format `Ratings` that the audit pillars consume. The measurement frame is rater = judge, item = evaluated sample, score = one rubric criterion. Rubric criteria are a separate facet, audited one at a time, never treated as raters; the cited reasoning is in the [interop ADR](decisions/2026-06-23-e07-eval-instruments-interop.md). metajudge consumes only the DataFrame, so it never imports Epic and adds no dependency.
 
 ## A runnable example
 
-This builds a small fixture in Epic's real `frame_from_evals` schema (the
-`(criterion, {class, score, notes})` MultiIndex), so it runs with no PHI and no model
-call. Three judges score twelve clinical summaries on one rubric criterion, split across
-two output strata.
+This builds a small fixture in Epic's real `frame_from_evals` schema (the `(criterion, {class, score, notes})` MultiIndex), so it runs with no PHI and no model call. Three judges score twelve clinical summaries on one rubric criterion, split across two output strata.
 
 ```python
 import pandas as pd
@@ -61,15 +48,8 @@ Output:
 - Effect size (Nagelkerke R2 delta): 0.111 (Jodoin-Gierl class C)
 ```
 
-These numbers come from a synthetic fixture and illustrate the seam and the report-card
-format, not a finding about any clinical instrument.
+These numbers come from a synthetic fixture and illustrate the seam and the report-card format, not a finding about any clinical instrument.
 
 ## On real Epic data
 
-Epic ships example clinical inputs, not saved judge outputs, and the full instruments
-are PHI-bearing and access-controlled. To audit a real instrument, run Epic's judge to
-produce a `frame_from_evals` DataFrame per judge or per run on your own governed data,
-then pass those frames to `Ratings.from_eval_instruments` exactly as above. Nothing
-leaves your environment: the adapter is a local DataFrame transform. For an
-instrument-level bias check rather than a panel-relative one, pass an external quality
-conditioner to the DIF step, as described in the DIF ADR.
+Epic ships example clinical inputs, not saved judge outputs, and the full instruments are PHI-bearing and access-controlled. To audit a real instrument, run Epic's judge to produce a `frame_from_evals` DataFrame per judge or per run on your own governed data, then pass those frames to `Ratings.from_eval_instruments` exactly as above. Nothing leaves your environment: the adapter is a local DataFrame transform. For an instrument-level bias check rather than a panel-relative one, pass an external quality conditioner to the DIF step, as described in the DIF ADR.
