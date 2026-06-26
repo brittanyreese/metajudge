@@ -78,7 +78,10 @@ def krippendorff_alpha(
     n_units = matrix.shape[1]
     boot: list[float] = []
     for _ in range(n_bootstrap):
-        cols = rng.integers(0, n_units, size=n_units)
+        # numpy types Generator.integers as Unknown under some interpreter/stub
+        # combinations (e.g. CPython 3.11), so pyright cannot infer the index
+        # dtype; it is a plain integer index array either way.
+        cols = rng.integers(0, n_units, size=n_units)  # type: ignore[reportUnknownVariableType]
         sample: NDArray[np.float64] = matrix[:, cols]
         try:
             boot.append(_alpha(sample, level))
