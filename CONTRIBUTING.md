@@ -5,7 +5,7 @@ A solo, open-source research project. These conventions keep the history clean e
 ## Setup
 
 ```bash
-uv sync --extra dev   # runtime + dev deps
+uv sync   # runtime + dev deps
 uv run pre-commit install   # once: lint/format/guard run on every commit
 ```
 

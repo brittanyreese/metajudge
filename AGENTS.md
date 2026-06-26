@@ -7,7 +7,7 @@ Pip-installable layer that audits an LLM judge/rubric instrument before it ships
 The repo uses uv. CI runs these exact steps (`.github/workflows/ci.yml`); match them locally before pushing:
 
 ```bash
-uv sync --extra dev          # install runtime + dev deps
+uv sync                      # install runtime + dev deps
 uv run ruff check .          # lint
 uv run ruff format --check . # format (drop --check to apply)
 uv run pyright               # type-check (strict)
