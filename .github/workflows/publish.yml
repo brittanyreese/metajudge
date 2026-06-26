@@ -3,8 +3,11 @@ on:
   push:
     tags:
       - "v*.*.*"
+  workflow_dispatch: {}
 jobs:
   publish:
+    # Real PyPI: only on a version tag push.
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
@@ -20,3 +23,23 @@ jobs:
       - run: uv run pytest
       - run: uv build
       - uses: pypa/gh-action-pypi-publish@release/v1
+  testpypi:
+    # TestPyPI dry-run: manual only, to rehearse the upload before the real tag.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: testpypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          python-version: "3.11"
+      - run: uv sync
+      - run: uv run ruff check .
+      - run: uv run pyright
+      - run: uv run pytest
+      - run: uv build
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
