@@ -1,6 +1,6 @@
 # Provenance
 
-This build came out of a prior direction-decision analysis. That analysis (problem framing, claims, prior-art survey, and a structured review) lives in a separate working project and is referenced, not copied, so this repo stays a clean product repo. The load-bearing conclusions it produced are recorded below; the requirements they fed into are in [SPEC.md](../SPEC.md), and decisions that change the build are captured as dated ADRs in [decisions/](decisions/).
+This file records why metajudge is built the way it is: the problem framing, the load-bearing conclusions from the prior-art survey, and the requirements they feed. The conclusions are summarized below; the requirements are in [SPEC.md](../SPEC.md); every decision that changes the build is a dated, cited ADR in [decisions/](decisions/); and the methods those decisions rest on are consolidated in [REFERENCES.md](REFERENCES.md).
 
 ## Load-bearing facts carried over
 
@@ -12,5 +12,6 @@ This build came out of a prior direction-decision analysis. That analysis (probl
 ## Research trail
 
 - [DECISIONS.md](DECISIONS.md): the curated index of every build-changing ADR (corpus lock, ordinal-DIF engine, ICC refusal on incomplete data), each linked to its full record in [decisions/](decisions/).
+- [REFERENCES.md](REFERENCES.md): the consolidated bibliography for every method the library implements.
 
-The systematic literature review behind the four-pillar framing, and the earlier method-exploration notes (corpus scans, DIF method iterations, the citation audit), are kept as private working notes for the methods writeup, outside the published tree.
+The literature review behind the four-pillar framing is distilled into those decision records and bibliography: each method choice traces to the sources it rests on, and the honest limits of applying a method outside its original validation are stated in the relevant ADR.

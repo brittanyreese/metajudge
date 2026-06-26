@@ -1,7 +1,7 @@
 # E07 DIF: ordinal logistic regression replaces dichotomized Mantel-Haenszel
 
 Status: Accepted for E07. Date: 2026-06-22.
-Supersedes the dichotomized Mantel-Haenszel DIF pillar and the earlier matching notes banked in private scratch (dif-method-and-matching, dif-method-reconciliation, dif-citation-verification, judge-dif-method-currency). This is the single current DIF decision record.
+Supersedes the dichotomized Mantel-Haenszel DIF pillar and the earlier matching-method iterations. This is the single current DIF decision record.
 
 ## Decision
 

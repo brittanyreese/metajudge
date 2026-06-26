@@ -119,5 +119,6 @@ SC2. Prior-art trip with pre-ship re-verify.
 
 ## Sources / Research
 
-- The four-pillar framing rests on a systematic literature review (37 sources, 7 areas), kept as private working notes for the methods writeup.
+- The four-pillar framing rests on a literature review across the reliability, DIF, and rater-mediated-measurement areas the library implements.
+- `docs/REFERENCES.md`: the consolidated bibliography for every method the library implements.
 - `docs/decisions/`: dated, cited ADRs where a research finding changes the build.

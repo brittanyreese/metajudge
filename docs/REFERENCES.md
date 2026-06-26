@@ -11,6 +11,8 @@ rather than sitting only inside individual ADRs.
 
 Krippendorff, K. (2004). Content Analysis: An Introduction to Its Methodology (2nd ed.). Sage. (The ordinal alpha is computed through the `krippendorff` package; see Software below.)
 
+Hayes, A. F., and Krippendorff, K. (2007). Answering the call for a standard reliability measure for coding data. Communication Methods and Measures, 1(1), 77-89. doi:10.1080/19312450709336664 (Basis for the percentile bootstrap CI on alpha and its small-sample caveat.)
+
 Shrout, P. E., and Fleiss, J. L. (1979). Intraclass correlations: Uses in assessing rater reliability. Psychological Bulletin, 86(2), 420-428. doi:10.1037/0033-2909.86.2.420
 
 McGraw, K. O., and Wong, S. P. (1996). Forming inferences about some intraclass correlation coefficients. Psychological Methods, 1(1), 30-46. doi:10.1037/1082-989X.1.1.30
@@ -31,6 +33,8 @@ ten Hove, D., Jorgensen, T. D., and van der Ark, L. A. (2025). How to estimate i
 
 ## Differential item functioning: ordinal logistic regression
 
+McCullagh, P. (1980). Regression models for ordinal data. Journal of the Royal Statistical Society: Series B (Methodological), 42(2), 109-142. doi:10.1111/j.2517-6161.1980.tb01109.x (The proportional-odds cumulative-logit model the DIF engine fits.)
+
 Zumbo, B. D. (1999). A handbook on the theory and methods of differential item functioning (DIF): Logistic regression modeling as a unitary framework for binary and Likert-type (ordinal) item scores. Ottawa: Directorate of Human Resources Research and Evaluation, Department of National Defence.
 
 Swaminathan, H., and Rogers, H. J. (1990). Detecting differential item functioning using logistic regression procedures. Journal of Educational Measurement, 27(4), 361-370. doi:10.1111/j.1745-3984.1990.tb00754.x
@@ -42,6 +46,8 @@ Choi, S. W., Gibbons, L. E., and Crane, P. K. (2011). lordif: An R package for d
 Allahyari, E., Jafari, P., and Bagheri, Z. (2016). A simulation study to assess the effect of the number of response categories on the power of ordinal logistic regression for differential item functioning analysis in rating scales. Computational and Mathematical Methods in Medicine, 2016, 5080826. doi:10.1155/2016/5080826
 
 ### Effect size and classification
+
+Nagelkerke, N. J. D. (1991). A note on a general definition of the coefficient of determination. Biometrika, 78(3), 691-692. doi:10.1093/biomet/78.3.691 (The pseudo-R-squared whose change between nested models is the DIF effect size.)
 
 Jodoin, M. G., and Gierl, M. J. (2001). Evaluating Type I error and power rates using an effect size measure with the logistic regression procedure for DIF detection. Applied Measurement in Education, 14(4), 329-349. doi:10.1207/s15324818ame1404_2
 
@@ -58,6 +64,12 @@ Clauser, B. E., Mazor, K. M., and Hambleton, R. K. (1993). The effects of purifi
 French, B. F., and Maller, S. J. (2007). Iterative purification and effect size use with logistic regression for differential item functioning detection. Educational and Psychological Measurement, 67(3), 373-393. doi:10.1177/0013164406294781
 
 Magis, D., Beland, S., Tuerlinckx, F., and De Boeck, P. (2010). A general framework and an R package for the detection of dichotomous differential item functioning. Behavior Research Methods, 42(3), 847-862. doi:10.3758/brm.42.3.847
+
+### Proportional-odds assumption diagnostic
+
+Brant, R. (1990). Assessing proportionality in the proportional odds model for ordinal logistic regression. Biometrics, 46(4), 1171-1178. doi:10.2307/2532457 (The Wald-type test `diagnostics.brant_test` implements.)
+
+Harrell, F. E. (2015). Regression Modeling Strategies (2nd ed.). Springer. doi:10.1007/978-3-319-19425-7 (Source for the Brant-test oversensitivity caveat at large N surfaced in the report card.)
 
 ## Clustered-error inference (the cluster bootstrap)
 
