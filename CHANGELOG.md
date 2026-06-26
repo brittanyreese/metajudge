@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
-## [0.1.0] - 2026-06-23
+## [0.1.0] - 2026-06-26
 
 First public release: the E07 two-pillar report card. A pip-installable layer that audits a multi-rater ordinal scoring instrument (an LLM-as-judge or a human rater panel) for reliability and differential item functioning, and prints a one-screen report card. Runtime dependencies are limited to `numpy`, `pandas`, `scipy`, and `krippendorff`.
 
