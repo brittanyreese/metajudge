@@ -14,4 +14,4 @@ Demo corpus lock: SummEval expert coherence (2026-06-22). The worked demo uses t
 
 ## Research behind the build
 
-The four-pillar framing and the method choices rest on a systematic literature review, kept as private working notes for the methods writeup. A research finding graduates into an ADR here only when it changes the build.
+The four-pillar framing and the method choices rest on a literature review of the reliability, DIF, and rater-mediated-measurement methods the library implements; the sources are consolidated in [REFERENCES.md](REFERENCES.md). A research finding graduates into an ADR here only when it changes the build.

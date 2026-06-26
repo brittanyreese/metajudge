@@ -52,4 +52,4 @@ Python 3.11+ (CI matrix 3.11/3.12/3.13). Strict pyright over `src` and `tests`. 
 
 ## Methods are provisional
 
-Method and library choices for later pillars (validity, variance decomposition, the MFRM engine in E04) are validated against current literature before a phase plan locks them, not assumed from defaults. The standing decisions live in `docs/decisions/`; the supporting reviews are kept as private working notes.
+Method and library choices for later pillars (validity, variance decomposition, the MFRM engine in E04) are validated against current literature before a phase plan locks them, not assumed from defaults. The standing decisions live in `docs/decisions/`, each citing the literature it rests on, and the consolidated bibliography is in `docs/REFERENCES.md`.
