@@ -41,7 +41,9 @@ Output:
 - Krippendorff's alpha (ordinal): 0.723 [95% CI 0.418, 0.739]
 - ICC(2,1): 0.711; ICC(2,k): 0.880 (12 targets x 3 raters)
 
-## DIF
+## DIF (panel-relative, rest-score conditioner)
+> Note: the rest-score conditioner cannot see bias shared across the entire rater panel, so this is panel-relative DIF, not an instrument-level fairness clearance. Pass an external quality conditioner to test for instrument-level bias.
+
 - abstractive vs extractive (conditioner: rest_score, n=36)
 - Uniform DIF: chi2(1)=8.16, p=0.0043
 - Nonuniform DIF: chi2(1)=0.27, p=0.6060
