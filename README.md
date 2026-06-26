@@ -3,6 +3,7 @@
 Audit a scoring instrument, an LLM-as-judge or a human rater panel, before you trust its numbers.
 
 [![CI](https://github.com/breesemarkides/metajudge/actions/workflows/ci.yml/badge.svg)](https://github.com/breesemarkides/metajudge/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/metajudge)](https://pypi.org/project/metajudge/)
 ![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)
 ![Coverage](https://img.shields.io/badge/coverage-%E2%89%A595%25-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -24,13 +25,11 @@ output strata.
 ## Try it on the demo
 
 The library ships a real corpus (SummEval expert coherence), so the example below runs
-end to end on a fresh clone with no data setup:
+end to end after install:
 
 ```bash
-git clone https://github.com/breesemarkides/metajudge && cd metajudge
-uv sync
-uv run python -c "from metajudge import load_demo, audit; \
-print(audit(load_demo(), focal='abstractive', reference='extractive').to_markdown())"
+pip install metajudge
+python -c "from metajudge import load_demo, audit; print(audit(load_demo(), focal='abstractive', reference='extractive').to_markdown())"
 ```
 
 The same call as a runnable script is in [`examples/audit_summeval.py`](examples/audit_summeval.py)
@@ -145,11 +144,8 @@ returns a 95% cluster-robust interval alongside the unchanged point estimate.
 
 ## Install
 
-Install from source (a PyPI release is not published yet):
-
 ```bash
-git clone https://github.com/breesemarkides/metajudge && cd metajudge
-uv sync                # runtime deps only: numpy, pandas, scipy, krippendorff
+pip install metajudge
 ```
 
 Requires Python 3.11 or later.
