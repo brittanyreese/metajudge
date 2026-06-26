@@ -100,7 +100,7 @@ Requires Python 3.11 or later.
 ## Develop
 
 ```bash
-uv sync --extra dev   # install runtime + dev deps
+uv sync               # install runtime + dev deps
 uv run pytest         # tests (coverage runs automatically)
 uv run ruff check .   # lint
 uv run ruff format .  # format
