@@ -124,9 +124,7 @@ def simulate(params: DgpParams, *, seed: int) -> SimSample:
             )
 
     long = pd.DataFrame(rows)
-    ratings = Ratings.from_long(
-        long, item="item", rater="rater", score="score", stratum="stratum"
-    )
+    ratings = Ratings.from_long(long, item="item", rater="rater", score="score", stratum="stratum")
 
     items = list(theta_map.keys())
     th_vec: NDArray[np.float64] = np.asarray([theta_map[it] for it in items], dtype=float)

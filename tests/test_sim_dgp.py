@@ -87,9 +87,7 @@ def test_invalid_params_raise() -> None:
             DgpParams(n_items_per_group=10, n_raters=2, thresholds=(0.0, 0.0, 0.0, 0.0)), seed=1
         )
     with pytest.raises(ValueError, match="reliability"):
-        simulate(
-            DgpParams(n_items_per_group=10, n_raters=2, conditioner_reliability=0.0), seed=1
-        )
+        simulate(DgpParams(n_items_per_group=10, n_raters=2, conditioner_reliability=0.0), seed=1)
     with pytest.raises(ValueError, match="n_raters"):
         simulate(DgpParams(n_items_per_group=10, n_raters=0), seed=1)
 
@@ -147,9 +145,7 @@ def test_nonuniform_dif_steepens_focal_trait_slope() -> None:
 def test_conditioner_reliability_is_realized(target: float) -> None:
     # Reliability = var(theta) / var(conditioner); the emitted conditioner adds noise to
     # theta so its realized reliability matches the target within Monte-Carlo error.
-    params = DgpParams(
-        n_items_per_group=6000, n_raters=1, conditioner_reliability=target
-    )
+    params = DgpParams(n_items_per_group=6000, n_raters=1, conditioner_reliability=target)
     sample = simulate(params, seed=2024)
     items = list(sample.theta)
     th = np.asarray([sample.theta[i] for i in items])

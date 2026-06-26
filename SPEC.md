@@ -24,7 +24,7 @@ itself is rarely audited as a measurement instrument. Shipped practitioner libra
 cover the commodity layer: AutoRubric and llm-judge-calibration ship reliability
 statistics (kappa, ICC, Krippendorff's alpha) and stop there. DIF across output strata
 and integrated statistical validity evidence have no shipped-library coverage; variance
-decomposition exists only as paper methodology (arxiv 2604.11581, 2606.13685). DeepEval
+decomposition exists only as paper methodology (arxiv 2604.11581). DeepEval
 and inspect_ai audit the model-as-subject (type-X), not the judge instrument (type-Y),
 so they do not address this surface.
 

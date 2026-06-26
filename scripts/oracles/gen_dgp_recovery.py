@@ -73,9 +73,7 @@ def main() -> int:
             recovered[name] = float(value)
     planted = {"theta": _PLANTED_TRAIT, "group": _PLANTED_GROUP}
     bad = {
-        k: recovered.get(k)
-        for k in planted
-        if abs(recovered.get(k, math.inf) - planted[k]) > _TOL
+        k: recovered.get(k) for k in planted if abs(recovered.get(k, math.inf) - planted[k]) > _TOL
     }
     if bad:
         print(f"recovery outside tolerance {_TOL}: planted={planted} recovered={recovered}")
