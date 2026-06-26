@@ -21,6 +21,7 @@ allowed_toplevel=(
   ".pre-commit-config.yaml"
   "AGENTS.md"
   "CHANGELOG.md"
+  "CITATION.cff"
   "CONTRIBUTING.md"
   "LICENSE"
   "README.md"

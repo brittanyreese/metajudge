@@ -22,7 +22,7 @@ pip install metajudge
 python -c "from metajudge import load_demo, audit; print(audit(load_demo(), focal='abstractive', reference='extractive').to_markdown())"
 ```
 
-A runnable script is at [`examples/audit_summeval.py`](examples/audit_summeval.py), with expected output in `examples/sample_output.txt`:
+A runnable script is at [`examples/audit_summeval.py`](https://github.com/brittanyreese/metajudge/blob/main/examples/audit_summeval.py), with expected output in `examples/sample_output.txt`:
 
 ```python
 from metajudge import load_demo, audit
@@ -53,7 +53,7 @@ It prints the actual report card below (these are the live demo numbers, not a m
 
 ## Audit your own judge
 
-To audit a real instrument, point metajudge at the output of an existing judge runner. `Ratings.from_eval_instruments` maps the per-judge score frames produced by Epic's [`evaluation-instruments`](https://github.com/epic-open-source/evaluation-instruments) (`frame_from_evals`) into the `Ratings` the audit consumes, with rater = judge, item = sample, score = one rubric criterion. It is a local DataFrame transform that adds no dependency. A runnable, no-PHI walkthrough is in [docs/interop-epic.md](docs/interop-epic.md).
+To audit a real instrument, point metajudge at the output of an existing judge runner. `Ratings.from_eval_instruments` maps the per-judge score frames produced by Epic's [`evaluation-instruments`](https://github.com/epic-open-source/evaluation-instruments) (`frame_from_evals`) into the `Ratings` the audit consumes, with rater = judge, item = sample, score = one rubric criterion. It is a local DataFrame transform that adds no dependency. A runnable, no-PHI walkthrough is in [docs/interop-epic.md](https://github.com/brittanyreese/metajudge/blob/main/docs/interop-epic.md).
 
 ## Cluster-robust DIF confidence intervals
 
@@ -117,10 +117,14 @@ Every statistic is pinned to an external reference, not to internal consistency 
 
 When a reference value and a literal disagree, the reference wins and the literal is corrected. Tolerances are not loosened to make a test pass.
 
+## Citing
+
+If you use metajudge in published work, cite it via the [`CITATION.cff`](https://github.com/brittanyreese/metajudge/blob/main/CITATION.cff) file (GitHub's "Cite this repository" generates APA and BibTeX from it). The methods the tool implements are credited to their original authors in [docs/REFERENCES.md](https://github.com/brittanyreese/metajudge/blob/main/docs/REFERENCES.md).
+
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](https://github.com/brittanyreese/metajudge/blob/main/LICENSE). The bundled SummEval demo corpus is redistributed under its own MIT license; see [its source notice](https://github.com/brittanyreese/metajudge/blob/main/src/metajudge/data/SOURCE.md).
 
 ## Decisions and provenance
 
-Every choice that changes the build is a dated, cited ADR. The curated index of what was decided and why is [docs/DECISIONS.md](docs/DECISIONS.md): the ordinal-DIF engine, the ICC refusal on incomplete data, and the SummEval corpus lock. The why-this-build context is in [docs/PROVENANCE.md](docs/PROVENANCE.md), and the full records live in [docs/decisions/](docs/decisions/).
+Every choice that changes the build is a dated, cited ADR. The curated index of what was decided and why is [docs/DECISIONS.md](https://github.com/brittanyreese/metajudge/blob/main/docs/DECISIONS.md): the ordinal-DIF engine, the ICC refusal on incomplete data, and the SummEval corpus lock. The why-this-build context is in [docs/PROVENANCE.md](https://github.com/brittanyreese/metajudge/blob/main/docs/PROVENANCE.md), and the full records live in [docs/decisions/](https://github.com/brittanyreese/metajudge/tree/main/docs/decisions/).
