@@ -17,25 +17,49 @@ from metajudge.reliability import (
 
 
 @dataclass(frozen=True)
+class Flags:
+    """Typed interpretation signals derived from a ReportCard.
+
+    Each field answers a trustworthiness or scope question a caller
+    (CLI, notebook, downstream renderer) might ask — without parsing strings.
+    """
+
+    converged: bool
+    po_violation: bool
+    conditioner_is_external: bool
+    alpha_ci_degraded: bool
+
+
+@dataclass(frozen=True)
 class ReportCard:
     alpha: AlphaResult
     icc: IccResult
     dif: DifResult
 
+    @property
+    def flags(self) -> Flags:
+        return Flags(
+            converged=self.dif.converged,
+            po_violation=self.dif.po_violation,
+            conditioner_is_external=self.dif.conditioner_source == "external",
+            alpha_ci_degraded=self.alpha.n_effective < self.alpha.n_bootstrap,
+        )
+
     def to_markdown(self) -> str:
         a = self.alpha
         ic = self.icc
         d = self.dif
+        f = self.flags
         alpha_ci = (
             f"- Krippendorff's alpha ({a.level}): {a.alpha:.3f} "
             f"[95% CI {a.ci_low:.3f}, {a.ci_high:.3f}]"
         )
-        if a.n_effective < a.n_bootstrap:
+        if f.alpha_ci_degraded:
             alpha_ci += (
                 f" (CI from {a.n_effective} of {a.n_bootstrap} bootstrap resamples; "
                 f"{a.n_bootstrap - a.n_effective} degenerate resamples dropped)"
             )
-        if d.conditioner_source == "external":
+        if f.conditioner_is_external:
             dif_header = "## DIF (instrument-level, external conditioner)"
             notes: list[str] = []
         else:
@@ -50,7 +74,7 @@ class ReportCard:
         # The convergence warning, the proportional-odds warning, and the panel-relative
         # note all sit ABOVE the statistics so a reader who excerpts the headline numbers
         # cannot drop them.
-        if d.po_violation:
+        if f.po_violation:
             notes = [
                 "> WARNING: the proportional-odds assumption is violated (Brant test); "
                 "the nonuniform-DIF test below may be unreliable, because a "
@@ -59,7 +83,7 @@ class ReportCard:
                 "",
                 *notes,
             ]
-        if not d.converged:
+        if not f.converged:
             notes = [
                 "> WARNING: the DIF model fit did not converge; the chi-square statistics "
                 "and effect size below are unreliable and must not be acted on.",

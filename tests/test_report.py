@@ -7,7 +7,7 @@ import pytest
 from metajudge.data import Ratings
 from metajudge.dif import DifResult, logistic_dif
 from metajudge.reliability import AlphaResult, IccResult
-from metajudge.report import ReportCard, audit
+from metajudge.report import Flags, ReportCard, audit
 
 
 def _card(*, converged: bool, conditioner_source: str = "rest_score") -> ReportCard:
@@ -216,3 +216,67 @@ def test_report_warns_on_po_violation() -> None:
     violated = replace(card, dif=replace(card.dif, po_violation=True))
     md = violated.to_markdown()
     assert "proportional-odds" in md.lower()
+
+
+def test_flags_property_returns_flags_instance() -> None:
+    card = _card(converged=True)
+    assert isinstance(card.flags, Flags)
+
+
+def test_flags_converged_false_when_dif_did_not_converge() -> None:
+    card = _card(converged=False)
+    assert card.flags.converged is False
+
+
+def test_flags_converged_true_when_dif_converged() -> None:
+    card = _card(converged=True)
+    assert card.flags.converged is True
+
+
+def test_flags_conditioner_is_external_when_source_is_external() -> None:
+    card = _card(converged=True, conditioner_source="external")
+    assert card.flags.conditioner_is_external is True
+
+
+def test_flags_conditioner_is_external_false_when_rest_score() -> None:
+    card = _card(converged=True, conditioner_source="rest_score")
+    assert card.flags.conditioner_is_external is False
+
+
+def test_flags_po_violation_false_by_default() -> None:
+    card = _card(converged=True)
+    assert card.flags.po_violation is False
+
+
+def test_flags_po_violation_true_when_set() -> None:
+    from dataclasses import replace
+
+    card = _card(converged=True)
+    violated = replace(card, dif=replace(card.dif, po_violation=True))
+    assert violated.flags.po_violation is True
+
+
+def test_flags_alpha_ci_degraded_when_resamples_dropped() -> None:
+    alpha = AlphaResult(
+        alpha=0.6,
+        ci_low=0.4,
+        ci_high=0.8,
+        level="nominal",
+        n_bootstrap=1000,
+        n_effective=120,
+    )
+    card = _card_with_alpha(alpha)
+    assert card.flags.alpha_ci_degraded is True
+
+
+def test_flags_alpha_ci_degraded_false_when_all_resamples_realized() -> None:
+    alpha = AlphaResult(
+        alpha=0.6,
+        ci_low=0.4,
+        ci_high=0.8,
+        level="nominal",
+        n_bootstrap=1000,
+        n_effective=1000,
+    )
+    card = _card_with_alpha(alpha)
+    assert card.flags.alpha_ci_degraded is False
