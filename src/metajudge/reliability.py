@@ -13,10 +13,7 @@ from metajudge.data import Ratings
 
 _LevelOfMeasurement = Literal["nominal", "ordinal", "interval", "ratio"]
 
-# Below this many realized resamples the percentile CI is too thin to trust. Kept in
-# sync with dif._MIN_EFFECTIVE so the alpha and DIF pillars apply the same reliability
-# floor and expose the same ``ci_reliable`` contract.
-_MIN_EFFECTIVE = 100
+_MIN_EFFECTIVE = 100  # min surviving bootstrap resamples for a trustworthy percentile CI
 
 
 @dataclass(frozen=True)
@@ -50,11 +47,6 @@ class AlphaResult:
         return self.n_effective >= _MIN_EFFECTIVE
 
 
-def _alpha(matrix: NDArray[np.float64], level: str) -> float:
-    lom = cast(_LevelOfMeasurement, level)
-    return float(kd.alpha(reliability_data=matrix, level_of_measurement=lom))  # type: ignore[reportUnknownMemberType]
-
-
 def krippendorff_alpha(
     ratings: Ratings,
     *,
@@ -73,7 +65,8 @@ def krippendorff_alpha(
     ``AlphaResult.n_effective``, which is below ``n_bootstrap`` when that happens.
     """
     matrix = ratings.coder_unit_matrix()
-    point = _alpha(matrix, level)
+    lom = cast(_LevelOfMeasurement, level)
+    point = float(kd.alpha(reliability_data=matrix, level_of_measurement=lom))  # type: ignore[reportUnknownMemberType]
     rng = np.random.default_rng(seed)
     n_units = matrix.shape[1]
     boot: list[float] = []
@@ -84,7 +77,7 @@ def krippendorff_alpha(
         cols = rng.integers(0, n_units, size=n_units)  # type: ignore[reportUnknownVariableType]
         sample: NDArray[np.float64] = matrix[:, cols]
         try:
-            boot.append(_alpha(sample, level))
+            boot.append(float(kd.alpha(reliability_data=sample, level_of_measurement=lom)))  # type: ignore[reportUnknownMemberType]
         except (ValueError, ZeroDivisionError):
             continue
     if boot:
