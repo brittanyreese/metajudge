@@ -2,7 +2,6 @@
 
 from metajudge.data import Ratings
 from metajudge.demo import load_demo
-from metajudge.diagnostics import BrantResult, brant_test
 from metajudge.dif import (
     ClusterBootstrapDif,
     DifResult,
@@ -16,7 +15,6 @@ __version__ = "0.1.0"
 
 __all__ = [
     "AlphaResult",
-    "BrantResult",
     "ClusterBootstrapDif",
     "DifResult",
     "Flags",
@@ -25,7 +23,6 @@ __all__ = [
     "ReportCard",
     "__version__",
     "audit",
-    "brant_test",
     "cluster_bootstrap_dif",
     "icc",
     "krippendorff_alpha",

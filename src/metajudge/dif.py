@@ -28,11 +28,130 @@ from scipy.special import expit  # type: ignore[import-untyped]
 from scipy.stats import chi2  # type: ignore[import-untyped]
 
 from metajudge.data import Ratings
-from metajudge.diagnostics import brant_test
 
 # Jodoin & Gierl (2001) Nagelkerke R-squared change thresholds.
 _JG_NEGLIGIBLE = 0.035
 _JG_LARGE = 0.070
+
+
+# ── Brant proportional-odds diagnostic (private; surfaced via DifResult.po_violation) ──
+
+
+@dataclass(frozen=True)
+class _BrantResult:
+    omnibus_chi2: float
+    omnibus_df: int
+    omnibus_p: float
+    per_predictor: dict[str, tuple[float, int, float]]
+    converged: bool
+
+
+def _fit_binary_logit(
+    y: NDArray[np.float64], design: NDArray[np.float64]
+) -> tuple[NDArray[np.float64], NDArray[np.float64], bool]:
+    """Fit a binary logit on a design that already includes the intercept column.
+
+    Returns ``(beta, pi, converged)`` where ``beta`` has length ``design.shape[1]``
+    (intercept first) and ``pi`` is the fitted P(y = 1) vector.
+    """
+    q = design.shape[1]
+
+    def nll(b: NDArray[np.float64]) -> float:
+        eta = design @ b
+        return -float(np.sum(y * eta - np.logaddexp(0.0, eta)))
+
+    res = minimize(nll, np.zeros(q), method="BFGS")  # type: ignore[reportUnknownVariableType]
+    beta: NDArray[np.float64] = np.asarray(res.x, dtype=np.float64)  # type: ignore[reportUnknownMemberType, reportUnknownArgumentType]
+    pi: NDArray[np.float64] = np.asarray(1.0 / (1.0 + np.exp(-(design @ beta))), dtype=np.float64)
+    return beta, pi, bool(res.success)  # type: ignore[reportUnknownMemberType, reportUnknownArgumentType]
+
+
+def _brant_test(
+    endog: NDArray[np.int_],
+    exog: NDArray[np.float64],
+    *,
+    names: list[str] | None = None,
+) -> _BrantResult:
+    """Brant (1990) Wald-type test of the proportional-odds assumption.
+
+    Args:
+        endog: ordinal categories, shape ``(n,)``.
+        exog: design matrix without intercept, shape ``(n, p)``.
+        names: optional predictor names (length p); defaults to ``x0..x{p-1}``.
+    """
+    from scipy.stats import chi2 as _chi2dist  # type: ignore[import-untyped]
+
+    y = np.asarray(endog, dtype=int)
+    x = np.asarray(exog, dtype=float)
+    n, p = x.shape
+    levels: NDArray[np.int_] = np.unique(y)  # type: ignore[reportUnknownMemberType]
+    m = int(levels.size) - 1
+    if names is None:
+        names = [f"x{i}" for i in range(p)]
+
+    design: NDArray[np.float64] = np.column_stack([np.ones(n), x])  # type: ignore[reportUnknownMemberType]
+    q = p + 1
+
+    betas: list[NDArray[np.float64]] = []
+    pis: list[NDArray[np.float64]] = []
+    converged = True
+    for k in range(m):
+        zk: NDArray[np.float64] = (y > levels[k]).astype(float)
+        beta, pi, ok = _fit_binary_logit(zk, design)
+        betas.append(beta)
+        pis.append(pi)
+        converged = converged and ok
+
+    inv_info: list[NDArray[np.float64]] = []
+    for k in range(m):
+        w = pis[k] * (1.0 - pis[k])
+        info_k = design.T @ (design * w[:, None])
+        inv_info.append(np.asarray(np.linalg.pinv(info_k), dtype=np.float64))
+
+    big = m * q
+    vmat: NDArray[np.float64] = np.zeros((big, big))
+    for k in range(m):
+        vmat[k * q : (k + 1) * q, k * q : (k + 1) * q] = inv_info[k]
+    for k in range(m):
+        for j in range(k + 1, m):
+            wkj = pis[j] * (1.0 - pis[k])
+            cross = inv_info[k] @ (design.T @ (design * wkj[:, None])) @ inv_info[j]
+            vmat[k * q : (k + 1) * q, j * q : (j + 1) * q] = cross
+            vmat[j * q : (j + 1) * q, k * q : (k + 1) * q] = cross.T
+
+    beta_stack: NDArray[np.float64] = np.concatenate(betas)  # type: ignore[reportUnknownMemberType]
+
+    def _wald(predictor_cols: list[int]) -> tuple[float, int]:
+        rows = (m - 1) * len(predictor_cols)
+        dmat: NDArray[np.float64] = np.zeros((rows, big))
+        row = 0
+        for r in range(1, m):
+            for col in predictor_cols:
+                dmat[row, 0 * q + col] = -1.0
+                dmat[row, r * q + col] = 1.0
+                row += 1
+        d = dmat @ beta_stack
+        cov = dmat @ vmat @ dmat.T
+        stat = float(d @ np.linalg.pinv(cov) @ d)
+        return stat, rows
+
+    all_slopes = list(range(1, q))
+    omnibus_chi2, omnibus_df = _wald(all_slopes)
+    omnibus_p = float(_chi2dist.sf(omnibus_chi2, omnibus_df)) if omnibus_df > 0 else 1.0  # type: ignore[reportUnknownMemberType]
+
+    per_predictor: dict[str, tuple[float, int, float]] = {}
+    for idx in range(p):
+        stat, df = _wald([1 + idx])
+        pval = float(_chi2dist.sf(stat, df)) if df > 0 else 1.0  # type: ignore[reportUnknownMemberType]
+        per_predictor[names[idx]] = (stat, df, pval)
+
+    return _BrantResult(
+        omnibus_chi2=omnibus_chi2,
+        omnibus_df=omnibus_df,
+        omnibus_p=omnibus_p,
+        per_predictor=per_predictor,
+        converged=converged,
+    )
 
 
 @dataclass(frozen=True)
@@ -290,7 +409,7 @@ def _dif_stats(
     # flagged. Advisory only: the Brant test is oversensitive at large N (Harrell 2015,
     # Ch. 13), so po_alpha defaults strict (1e-3). Failures to fit leave the flag off.
     try:
-        brant = brant_test(endog, x3, names=["cond", "group", "cond_group"])
+        brant = _brant_test(endog, x3, names=["cond", "group", "cond_group"])
         po_violation = bool(brant.converged and brant.omnibus_p < po_alpha)
     except (np.linalg.LinAlgError, ValueError):
         po_violation = False
