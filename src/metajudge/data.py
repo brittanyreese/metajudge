@@ -56,23 +56,6 @@ class Ratings:
             stratum_col=stratum,
         )
 
-    @staticmethod
-    def _select_criterion(frame: pd.DataFrame, criterion: str) -> pd.Series:
-        """Pull the per-sample score column for one rubric criterion.
-
-        Handles both `frame_from_evals` shapes: a flat frame whose columns are
-        criteria, and a detailed frame whose columns are a (criterion, field)
-        MultiIndex where field is one of class/score/notes.
-        """
-        if isinstance(frame.columns, pd.MultiIndex):
-            col = (criterion, "score")
-            if col not in frame.columns:
-                raise ValueError(f"criterion {criterion!r} (score field) not found in eval frame")
-            return frame[col]
-        if criterion not in frame.columns:
-            raise ValueError(f"criterion {criterion!r} not found in eval frame")
-        return frame[criterion]
-
     @classmethod
     def from_eval_instruments(
         cls,
@@ -99,7 +82,19 @@ class Ratings:
             raise ValueError("from_eval_instruments needs at least one judge frame")
         parts: list[pd.DataFrame] = []
         for rater_id, frame in frames.items():
-            scores = cls._select_criterion(frame, criterion)
+            # Handles both frame_from_evals shapes: flat (columns = criteria) and
+            # detailed ((criterion, field) MultiIndex, field in class/score/notes).
+            if isinstance(frame.columns, pd.MultiIndex):
+                col = (criterion, "score")
+                if col not in frame.columns:
+                    raise ValueError(
+                        f"criterion {criterion!r} (score field) not found in eval frame"
+                    )
+                scores = frame[col]
+            else:
+                if criterion not in frame.columns:
+                    raise ValueError(f"criterion {criterion!r} not found in eval frame")
+                scores = frame[criterion]
             parts.append(
                 pd.DataFrame(
                     {
@@ -115,14 +110,6 @@ class Ratings:
             long["stratum"] = long["item"].map(mapping)
             return cls.from_long(long, item="item", rater="rater", score="score", stratum="stratum")
         return cls.from_long(long, item="item", rater="rater", score="score")
-
-    @property
-    def n_items(self) -> int:
-        return len(self.items)
-
-    @property
-    def n_raters(self) -> int:
-        return len(self.raters)
 
     def wide(self) -> pd.DataFrame:
         wide = self._long.pivot_table(

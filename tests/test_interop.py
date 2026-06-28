@@ -36,8 +36,8 @@ def test_from_eval_instruments_flat_two_judges() -> None:
 
     r = Ratings.from_eval_instruments({"judge_a": j1, "judge_b": j2}, criterion="organization")
 
-    assert r.n_items == 2
-    assert r.n_raters == 2
+    assert len(r.items) == 2
+    assert len(r.raters) == 2
     wide = r.wide()  # items x raters
     assert wide.loc["s1", "judge_a"] == 5
     assert wide.loc["s1", "judge_b"] == 4

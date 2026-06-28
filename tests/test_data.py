@@ -19,8 +19,8 @@ def _long() -> pd.DataFrame:
 
 def test_from_long_builds_matrix() -> None:
     r = Ratings.from_long(_long(), item="item", rater="rater", score="score")
-    assert r.n_items == 2
-    assert r.n_raters == 2
+    assert len(r.items) == 2
+    assert len(r.raters) == 2
     m = r.coder_unit_matrix()
     assert m.shape == (2, 2)
     # rows = raters sorted (r1, r2); cols = items sorted (i1, i2)
