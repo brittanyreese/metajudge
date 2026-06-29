@@ -7,6 +7,7 @@ def test_public_symbols_exported() -> None:
         "Ratings",
         "audit",
         "ReportCard",
+        "Flags",
         "krippendorff_alpha",
         "AlphaResult",
         "icc",

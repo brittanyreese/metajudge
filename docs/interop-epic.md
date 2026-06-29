@@ -42,7 +42,7 @@ Output:
 - ICC(2,1): 0.711; ICC(2,k): 0.880 (12 targets x 3 raters)
 
 ## DIF (panel-relative, rest-score conditioner)
-> Note: the rest-score conditioner cannot see bias shared across the entire rater panel, so this is panel-relative DIF, not an instrument-level fairness clearance. Pass an external quality conditioner to test for instrument-level bias.
+> Note: the rest-score conditioner cannot see bias shared across the entire rater panel, so this is panel-relative DIF, not an instrument-level fairness clearance. Pass a valid independent external quality conditioner; instrument-level interpretation requires it and holds only when the conditioner is valid, independent, and appropriate to the evaluation context.
 
 - abstractive vs extractive (conditioner: rest_score, n=36)
 - Uniform DIF: chi2(1)=8.16, p=0.0043
@@ -54,4 +54,4 @@ These numbers come from a synthetic fixture and illustrate the seam and the repo
 
 ## On real Epic data
 
-Epic ships example clinical inputs, not saved judge outputs, and the full instruments are PHI-bearing and access-controlled. To audit a real instrument, run Epic's judge to produce a `frame_from_evals` DataFrame per judge or per run on your own governed data, then pass those frames to `Ratings.from_eval_instruments` exactly as above. Nothing leaves your environment: the adapter is a local DataFrame transform. For an instrument-level bias check rather than a panel-relative one, pass an external quality conditioner to the DIF step, as described in the DIF ADR.
+Epic ships example clinical inputs, not saved judge outputs, and the full instruments are PHI-bearing and access-controlled. To audit a real instrument, run Epic's judge to produce a `frame_from_evals` DataFrame per judge or per run on your own governed data, then pass those frames to `Ratings.from_eval_instruments` exactly as above. Nothing leaves your environment: the adapter is a local DataFrame transform. Pass a valid independent external quality conditioner to the DIF step for instrument-level interpretation; see the DIF ADR for caveats.

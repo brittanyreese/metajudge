@@ -43,7 +43,21 @@ class Ratings:
         missing = [c for c in cols if c not in df.columns]
         if missing:
             raise ValueError(f"columns not found: {missing}")
+        duplicate_cells = df.duplicated(subset=[item, rater], keep=False)
+        if bool(duplicate_cells.any()):
+            bad = df.loc[duplicate_cells, [item, rater]].drop_duplicates().to_dict("records")
+            if stratum and bool(
+                df.loc[duplicate_cells].groupby([item, rater])[stratum].nunique().gt(1).any()
+            ):
+                raise ValueError(
+                    f"duplicate item-rater cells with conflicting stratum labels: {bad}; "
+                    "fix the stratum column first, then aggregate if needed"
+                )
+            raise ValueError(f"duplicate item-rater cells found; aggregate explicitly first: {bad}")
         if stratum is not None:
+            if bool(df[stratum].isna().any()):
+                bad_items = df.loc[df[stratum].isna(), item].drop_duplicates().tolist()
+                raise ValueError(f"missing stratum values for items: {bad_items}")
             per_item = df.groupby(item)[stratum].nunique()
             if (per_item > 1).any():
                 bad = per_item[per_item > 1].index.tolist()

@@ -110,8 +110,8 @@ def icc(ratings: Ratings) -> IccResult:
             "missing cells found. Incomplete or partially-crossed designs require a "
             "variance-components estimator (ten Hove et al. 2024, Psychological Methods), "
             "not listwise deletion, which is biased and discards information. That "
-            "estimator is the deferred E04 variance pillar; E07 refuses here rather than "
-            "report a wrong reliability coefficient."
+            "estimator is outside this two-pillar screening package; metajudge refuses "
+            "here rather than report a wrong reliability coefficient."
         )
     data = wide.to_numpy(dtype=float)  # targets x raters
     n, k = data.shape

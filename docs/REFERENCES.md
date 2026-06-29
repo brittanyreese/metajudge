@@ -19,7 +19,7 @@ McGraw, K. O., and Wong, S. P. (1996). Forming inferences about some intraclass 
 
 Koo, T. K., and Li, M. Y. (2016). A guideline of selecting and reporting intraclass correlation coefficients for reliability research. Journal of Chiropractic Medicine, 15(2), 155-163. doi:10.1016/j.jcm.2016.02.012
 
-## Incomplete-data reliability (the deferred E04 estimator)
+## Incomplete-data reliability (outside E07 scope)
 
 Ebel, R. L. (1951). Estimation of the reliability of ratings. Psychometrika, 16(4), 407-424. doi:10.1007/BF02288803
 

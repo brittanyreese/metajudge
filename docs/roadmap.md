@@ -49,8 +49,10 @@ Separate from the engine build, done as E07 is packaged for release:
 - Tag `v0.1.0` on a clean `main`.
 - PyPI trusted publishing via OIDC (release workflow building with `uv build` on a `v*` tag): deferred until there is a reason to publish.
 
-## E04: the full instrument (deferred)
+## Archived E04: the full instrument hypothesis
 
-E04 would have added a validity pillar, variance decomposition, and a many-facet Rasch (MFRM) engine. It is deferred, not scheduled. The MFRM / IRT-over-judges paradigm it would implement is now well covered by the active measurement-for-LLM-eval literature and tooling (py-irt, tinyBenchmarks, HELM-IRT), so building a second engine for it is low-leverage. metajudge's durable role is the narrower one it already fills: a reliability plus DIF library for *subjective* multi-rater scoring, where no gold label exists and the question is whether the instrument is reliable and unbiased across output strata. That niche is not covered by the ground-truth IRT tools.
+E04 would have added a validity pillar, variance decomposition, and a many-facet Rasch (MFRM) engine. That plan is archived, not deferred. The MFRM / IRT-over-judges paradigm it would implement is now well covered by active measurement-for-LLM-eval literature and tooling (py-irt, tinyBenchmarks, HELM-IRT), so building a second engine for it is low-leverage.
 
-See SPEC.md for the original E04 scope and the ship gate.
+metajudge's durable role is the narrower one it already fills: a reliability plus DIF library for *subjective* multi-rater scoring, where no gold label exists and the question is whether the instrument is reliable and shows differential functioning across output strata. That niche is not covered by the ground-truth IRT tools.
+
+Reviving E04 requires a new prior-art and leverage review; it is not an active next step.

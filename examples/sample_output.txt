@@ -5,7 +5,7 @@
 - ICC(2,1): 0.573; ICC(2,k): 0.801 (1600 targets x 3 raters)
 
 ## DIF (panel-relative, rest-score conditioner)
-> Note: the rest-score conditioner cannot see bias shared across the entire rater panel, so this is panel-relative DIF, not an instrument-level fairness clearance. Pass an external quality conditioner to test for instrument-level bias.
+> Note: the rest-score conditioner cannot see bias shared across the entire rater panel, so this is panel-relative DIF, not an instrument-level fairness clearance. Pass a valid independent external quality conditioner for a stronger instrument-level analysis.
 
 - abstractive vs extractive (conditioner: rest_score, n=4800)
 - Uniform DIF: chi2(1)=12.15, p=0.0005

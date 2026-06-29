@@ -50,3 +50,37 @@ def test_inconsistent_stratum_per_item_raises() -> None:
     df.loc[1, "group"] = "b"  # i1 now has two stratum labels
     with pytest.raises(ValueError, match="one stratum"):
         Ratings.from_long(df, item="item", rater="rater", score="score", stratum="group")
+
+
+def test_from_long_missing_column_raises() -> None:
+    df = _long()
+    with pytest.raises(ValueError, match="columns not found"):
+        Ratings.from_long(df, item="item", rater="rater", score="nonexistent")
+
+
+def test_conflicting_stratum_labels_raise() -> None:
+    # Same (item, rater) pair appears twice with DIFFERENT stratum values.
+    df = pd.DataFrame(
+        {"item": ["x", "x"], "rater": ["A", "A"], "score": [3, 4], "stratum": ["S1", "S2"]}
+    )
+    with pytest.raises(ValueError, match="conflicting stratum labels"):
+        Ratings.from_long(df, item="item", rater="rater", score="score", stratum="stratum")
+
+
+def test_duplicate_item_rater_cells_raise() -> None:
+    df = pd.concat([_long(), _long().iloc[[0]]], ignore_index=True)
+    with pytest.raises(ValueError, match="duplicate item-rater"):
+        Ratings.from_long(df, item="item", rater="rater", score="score", stratum="group")
+
+
+def test_missing_stratum_values_raise() -> None:
+    df = _long()
+    df.loc[0, "group"] = None
+    with pytest.raises(ValueError, match="missing stratum"):
+        Ratings.from_long(df, item="item", rater="rater", score="score", stratum="group")
+
+
+def test_from_eval_instruments_missing_stratum_mapping_raises() -> None:
+    frame = pd.DataFrame({"quality": [1, 2]}, index=["i1", "i2"])
+    with pytest.raises(ValueError, match="missing stratum"):
+        Ratings.from_eval_instruments({"judge": frame}, criterion="quality", stratum={"i1": "a"})

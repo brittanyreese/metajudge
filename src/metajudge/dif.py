@@ -62,7 +62,7 @@ def _fit_binary_logit(
 
     res = minimize(nll, np.zeros(q), method="BFGS")  # type: ignore[reportUnknownVariableType]
     beta: NDArray[np.float64] = np.asarray(res.x, dtype=np.float64)  # type: ignore[reportUnknownMemberType, reportUnknownArgumentType]
-    pi: NDArray[np.float64] = np.asarray(1.0 / (1.0 + np.exp(-(design @ beta))), dtype=np.float64)
+    pi: NDArray[np.float64] = np.asarray(expit(design @ beta), dtype=np.float64)
     return beta, pi, bool(res.success)  # type: ignore[reportUnknownMemberType, reportUnknownArgumentType]
 
 
@@ -79,13 +79,16 @@ def _brant_test(
         exog: design matrix without intercept, shape ``(n, p)``.
         names: optional predictor names (length p); defaults to ``x0..x{p-1}``.
     """
-    from scipy.stats import chi2 as _chi2dist  # type: ignore[import-untyped]
-
     y = np.asarray(endog, dtype=int)
     x = np.asarray(exog, dtype=float)
     n, p = x.shape
     levels: NDArray[np.int_] = np.unique(y)  # type: ignore[reportUnknownMemberType]
     m = int(levels.size) - 1
+    if m < 2:
+        # Proportional-odds requires at least 3 ordinal levels; test is not applicable.
+        return _BrantResult(
+            omnibus_chi2=0.0, omnibus_df=0, omnibus_p=1.0, per_predictor={}, converged=True
+        )
     if names is None:
         names = [f"x{i}" for i in range(p)]
 
@@ -106,6 +109,13 @@ def _brant_test(
     for k in range(m):
         w = pis[k] * (1.0 - pis[k])
         info_k = design.T @ (design * w[:, None])
+        if np.linalg.cond(info_k) > 1e10:
+            # Near-perfect separation: pinv would return a large pseudoinverse and inflate
+            # chi2, producing a spurious po_violation signal. Bail early with converged=False
+            # so the caller treats the Brant result as unreliable (advisory-only test).
+            return _BrantResult(
+                omnibus_chi2=0.0, omnibus_df=0, omnibus_p=1.0, per_predictor={}, converged=False
+            )
         inv_info.append(np.asarray(np.linalg.pinv(info_k), dtype=np.float64))
 
     big = m * q
@@ -137,12 +147,12 @@ def _brant_test(
 
     all_slopes = list(range(1, q))
     omnibus_chi2, omnibus_df = _wald(all_slopes)
-    omnibus_p = float(_chi2dist.sf(omnibus_chi2, omnibus_df)) if omnibus_df > 0 else 1.0  # type: ignore[reportUnknownMemberType]
+    omnibus_p = float(chi2.sf(omnibus_chi2, omnibus_df)) if omnibus_df > 0 else 1.0  # type: ignore[reportUnknownMemberType]
 
     per_predictor: dict[str, tuple[float, int, float]] = {}
     for idx in range(p):
         stat, df = _wald([1 + idx])
-        pval = float(_chi2dist.sf(stat, df)) if df > 0 else 1.0  # type: ignore[reportUnknownMemberType]
+        pval = float(chi2.sf(stat, df)) if df > 0 else 1.0  # type: ignore[reportUnknownMemberType]
         per_predictor[names[idx]] = (stat, df, pval)
 
     return _BrantResult(
@@ -172,6 +182,11 @@ class DifResult:
     focal_level: str
     converged: bool
     po_violation: bool
+
+    @property
+    def conditioner_is_external(self) -> bool:
+        """Whether the conditioner came from an external source rather than the panel rest score."""
+        return self.conditioner_source == "external"
 
 
 def _classify_jodoin_gierl(r2_delta: float) -> str:
@@ -411,7 +426,7 @@ def _dif_stats(
     try:
         brant = _brant_test(endog, x3, names=["cond", "group", "cond_group"])
         po_violation = bool(brant.converged and brant.omnibus_p < po_alpha)
-    except (np.linalg.LinAlgError, ValueError):
+    except (np.linalg.LinAlgError, ValueError, RuntimeError):
         po_violation = False
 
     return _DifStats(
@@ -451,7 +466,8 @@ def logistic_dif(
     When the bias is a property of the instrument applied to a group (every rater shares
     it), the rest score is contaminated by that shared bias and will understate the DIF.
     Use an external, independent conditioner (a gold quality score, or a leave-one-
-    criterion-out mean across rubric dimensions) for instrument-level bias.
+    criterion-out mean across rubric dimensions) when you need a stronger instrument-level
+    analysis; the interpretation is only as good as that conditioner.
 
     Raises:
         ValueError: if ``focal`` or ``reference`` is not a stratum level; if an explicit
@@ -585,6 +601,8 @@ def cluster_bootstrap_dif(
 
     Raises:
         ValueError: if ``ci`` is not strictly inside ``(0, 1)``.
+        ValueError: if ``ratings`` has no stratum column (pass ``stratum=`` to
+            :meth:`Ratings.from_long <metajudge.data.Ratings.from_long>`).
     """
     if not 0.0 < ci < 1.0:
         raise ValueError(f"ci must be in (0, 1); got {ci}")
@@ -643,6 +661,8 @@ def cluster_bootstrap_dif(
             stats = _dif_stats(scores, groups, cond_rows, want_split=False)
         except ValueError:
             continue
+        if not stats.converged:
+            continue
         chi2_totals.append(stats.chi2_total)
         r2_deltas.append(stats.nagelkerke_r2_delta)
 
@@ -650,8 +670,8 @@ def cluster_bootstrap_dif(
         r2_low, r2_high = (float(x) for x in np.percentile(r2_deltas, [pct_low, pct_high]))  # type: ignore[reportUnknownMemberType]
         c2_low, c2_high = (float(x) for x in np.percentile(chi2_totals, [pct_low, pct_high]))  # type: ignore[reportUnknownMemberType]
     else:
-        r2_low = r2_high = base.nagelkerke_r2_delta
-        c2_low = c2_high = base.chi2_total
+        r2_low = r2_high = float("nan")
+        c2_low = c2_high = float("nan")
 
     return ClusterBootstrapDif(
         base=base,

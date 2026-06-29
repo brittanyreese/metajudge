@@ -147,14 +147,16 @@ def test_markdown_rest_score_is_panel_relative_and_warns() -> None:
     assert "fairness clearance" in md
 
 
-def test_markdown_external_is_instrument_level_no_warning() -> None:
+def test_markdown_external_names_conditioner_and_warns_about_interpretation() -> None:
     cond: dict[Hashable, float] = {f"i{i}": float(i % 5) for i in range(40)}
     card = audit(
         _ratings(), focal="foc", reference="ref", level="ordinal", seed=1, conditioner=cond
     )
     md = card.to_markdown()
     assert card.dif.conditioner_source == "external"
-    assert "instrument-level" in md
+    assert "external conditioner" in md
+    assert "instrument-level interpretation" in md
+    assert "valid, independent" in md
     assert "panel-relative" not in md
     assert "fairness clearance" not in md
 
@@ -193,6 +195,20 @@ def test_markdown_flags_dropped_bootstrap_replicates() -> None:
     assert "1000" in md
 
 
+def test_markdown_flags_thin_alpha_ci_even_without_drops() -> None:
+    alpha = AlphaResult(
+        alpha=0.6,
+        ci_low=0.4,
+        ci_high=0.8,
+        level="nominal",
+        n_bootstrap=50,
+        n_effective=50,
+    )
+    md = _card_with_alpha(alpha).to_markdown()
+    assert "indicative only" in md
+    assert "50" in md
+
+
 def test_markdown_omits_caveat_when_all_replicates_realized() -> None:
     alpha = AlphaResult(
         alpha=0.6,
@@ -223,37 +239,39 @@ def test_flags_property_returns_flags_instance() -> None:
     assert isinstance(card.flags, Flags)
 
 
-def test_flags_converged_false_when_dif_did_not_converge() -> None:
+def test_dif_converged_false_when_dif_did_not_converge() -> None:
     card = _card(converged=False)
-    assert card.flags.converged is False
+    assert card.dif.converged is False
 
 
-def test_flags_converged_true_when_dif_converged() -> None:
+def test_dif_converged_true_when_dif_converged() -> None:
     card = _card(converged=True)
-    assert card.flags.converged is True
+    assert card.dif.converged is True
 
 
 def test_flags_conditioner_is_external_when_source_is_external() -> None:
     card = _card(converged=True, conditioner_source="external")
     assert card.flags.conditioner_is_external is True
+    assert card.dif.conditioner_is_external is True  # also accessible on DifResult
 
 
 def test_flags_conditioner_is_external_false_when_rest_score() -> None:
     card = _card(converged=True, conditioner_source="rest_score")
     assert card.flags.conditioner_is_external is False
+    assert card.dif.conditioner_is_external is False
 
 
-def test_flags_po_violation_false_by_default() -> None:
+def test_dif_po_violation_false_by_default() -> None:
     card = _card(converged=True)
-    assert card.flags.po_violation is False
+    assert card.dif.po_violation is False
 
 
-def test_flags_po_violation_true_when_set() -> None:
+def test_dif_po_violation_true_when_set() -> None:
     from dataclasses import replace
 
     card = _card(converged=True)
     violated = replace(card, dif=replace(card.dif, po_violation=True))
-    assert violated.flags.po_violation is True
+    assert violated.dif.po_violation is True
 
 
 def test_flags_alpha_ci_degraded_when_resamples_dropped() -> None:
@@ -280,3 +298,13 @@ def test_flags_alpha_ci_degraded_false_when_all_resamples_realized() -> None:
     )
     card = _card_with_alpha(alpha)
     assert card.flags.alpha_ci_degraded is False
+
+
+def test_flags_alpha_ci_degraded_true_when_thin_bootstrap_no_drops() -> None:
+    # n_effective == n_bootstrap (no drops) but both below _MIN_EFFECTIVE=100;
+    # degraded triggers via `not ci_reliable`, not via the drops branch.
+    alpha = AlphaResult(
+        alpha=0.6, ci_low=0.4, ci_high=0.8, level="nominal", n_bootstrap=50, n_effective=50
+    )
+    card = _card_with_alpha(alpha)
+    assert card.flags.alpha_ci_degraded is True

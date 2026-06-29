@@ -22,10 +22,12 @@ class Flags:
 
     Each field answers a trustworthiness or scope question a caller
     (CLI, notebook, downstream renderer) might ask — without parsing strings.
+
+    DIF convergence and proportional-odds signals live on ``ReportCard.dif`` directly
+    (``dif.converged``, ``dif.po_violation``, ``dif.conditioner_is_external``); only
+    the cross-pillar alpha CI quality signal belongs here.
     """
 
-    converged: bool
-    po_violation: bool
     conditioner_is_external: bool
     alpha_ci_degraded: bool
 
@@ -39,10 +41,10 @@ class ReportCard:
     @property
     def flags(self) -> Flags:
         return Flags(
-            converged=self.dif.converged,
-            po_violation=self.dif.po_violation,
-            conditioner_is_external=self.dif.conditioner_source == "external",
-            alpha_ci_degraded=self.alpha.n_effective < self.alpha.n_bootstrap,
+            conditioner_is_external=self.dif.conditioner_is_external,
+            alpha_ci_degraded=(
+                self.alpha.n_effective < self.alpha.n_bootstrap or not self.alpha.ci_reliable
+            ),
         )
 
     def to_markdown(self) -> str:
@@ -55,26 +57,34 @@ class ReportCard:
             f"[95% CI {a.ci_low:.3f}, {a.ci_high:.3f}]"
         )
         if f.alpha_ci_degraded:
-            alpha_ci += (
-                f" (CI from {a.n_effective} of {a.n_bootstrap} bootstrap resamples; "
-                f"{a.n_bootstrap - a.n_effective} degenerate resamples dropped)"
-            )
+            details = [f"CI from {a.n_effective} of {a.n_bootstrap} bootstrap resamples"]
+            dropped = a.n_bootstrap - a.n_effective
+            if dropped:
+                details.append(f"{dropped} degenerate resamples dropped")
+            if not a.ci_reliable:
+                details.append("indicative only because fewer than 100 resamples survived")
+            alpha_ci += f" ({'; '.join(details)})"
         if f.conditioner_is_external:
-            dif_header = "## DIF (instrument-level, external conditioner)"
-            notes: list[str] = []
+            dif_header = "## DIF (external conditioner)"
+            notes = [
+                "> Note: external-conditioner DIF supports instrument-level interpretation "
+                "only when the conditioner is valid, independent, and appropriate for the "
+                "quality construct being matched.",
+                "",
+            ]
         else:
             dif_header = "## DIF (panel-relative, rest-score conditioner)"
             notes = [
                 "> Note: the rest-score conditioner cannot see bias shared across the "
                 "entire rater panel, so this is panel-relative DIF, not an instrument-level "
-                "fairness clearance. Pass an external quality conditioner to test for "
-                "instrument-level bias.",
+                "fairness clearance. Pass a valid independent external quality conditioner "
+                "for a stronger instrument-level analysis.",
                 "",
             ]
         # The convergence warning, the proportional-odds warning, and the panel-relative
         # note all sit ABOVE the statistics so a reader who excerpts the headline numbers
         # cannot drop them.
-        if f.po_violation:
+        if d.po_violation:
             notes = [
                 "> WARNING: the proportional-odds assumption is violated (Brant test); "
                 "the nonuniform-DIF test below may be unreliable, because a "
@@ -83,7 +93,7 @@ class ReportCard:
                 "",
                 *notes,
             ]
-        if not f.converged:
+        if not d.converged:
             notes = [
                 "> WARNING: the DIF model fit did not converge; the chi-square statistics "
                 "and effect size below are unreliable and must not be acted on.",

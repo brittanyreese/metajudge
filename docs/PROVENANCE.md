@@ -4,9 +4,9 @@ This file records why metajudge is built the way it is: the problem framing, the
 
 ## Load-bearing facts carried over
 
-- The contribution is the integrated measurement-rigor surface (DIF across output strata + integrated validity), uncovered by shipped tools (AutoRubric and llm-judge-calibration ship reliability only).
-- Adjacent methods work is active (Fair-IRT, fl-IRT-ing, two 2026 variance papers), so E07 ships the reliability + DIF slice first and keeps its method choices current with that literature.
-- The full-instrument engine is MFRM (many-facet Rasch), the eventual E04 engine and the methods-paper headline. Python MFRM tooling is thin (FACETS proprietary; R via TAM/immer/sirt), so the MFRM engine is a real build, larger than E07.
+- The contribution is the narrow measurement-rigor surface metajudge can defend today: reliability plus DIF across output strata for subjective multi-rater ordinal scoring.
+- Adjacent methods work is active (Fair-IRT, fl-IRT-ing, variance papers, and judge-calibration tooling), so E07 keeps its method choices current with that literature.
+- The original full-instrument / MFRM (many-facet Rasch) plan is archived product context, not an active roadmap commitment. Python MFRM tooling is thin (FACETS proprietary; R via TAM/immer/sirt), which is part of why that engine is not scheduled here.
 - The library ships MIT-free. Its value is the published method and the demonstrated fit on real instruments.
 
 ## Research trail
@@ -14,4 +14,4 @@ This file records why metajudge is built the way it is: the problem framing, the
 - [DECISIONS.md](DECISIONS.md): the curated index of every build-changing ADR (corpus lock, ordinal-DIF engine, ICC refusal on incomplete data), each linked to its full record in [decisions/](decisions/).
 - [REFERENCES.md](REFERENCES.md): the consolidated bibliography for every method the library implements.
 
-The literature review behind the four-pillar framing is distilled into those decision records and bibliography: each method choice traces to the sources it rests on, and the honest limits of applying a method outside its original validation are stated in the relevant ADR.
+The literature review behind the two-pillar scope is distilled into those decision records and bibliography: each method choice traces to the sources it rests on, and the honest limits of applying a method outside its original validation are stated in the relevant ADR.
