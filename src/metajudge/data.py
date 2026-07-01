@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from collections.abc import Hashable, Mapping
+from typing import Never
 
 import numpy as np
 import pandas as pd
@@ -39,14 +40,14 @@ class Ratings:
         score: str,
         stratum: str | None = None,
     ) -> Ratings:
-        cols = [item, rater, score] + ([stratum] if stratum else [])
+        cols = [item, rater, score] + ([stratum] if stratum is not None else [])
         missing = [c for c in cols if c not in df.columns]
         if missing:
             raise ValueError(f"columns not found: {missing}")
         duplicate_cells = df.duplicated(subset=[item, rater], keep=False)
         if bool(duplicate_cells.any()):
             bad = df.loc[duplicate_cells, [item, rater]].drop_duplicates().to_dict("records")
-            if stratum and bool(
+            if stratum is not None and bool(
                 df.loc[duplicate_cells].groupby([item, rater])[stratum].nunique().gt(1).any()
             ):
                 raise ValueError(
@@ -124,6 +125,18 @@ class Ratings:
             long["stratum"] = long["item"].map(mapping)
             return cls.from_long(long, item="item", rater="rater", score="score", stratum="stratum")
         return cls.from_long(long, item="item", rater="rater", score="score")
+
+    @property
+    def n_items(self) -> Never:
+        raise AttributeError(
+            "Ratings.n_items was removed in 0.1.0; use len(ratings.items) instead."
+        )
+
+    @property
+    def n_raters(self) -> Never:
+        raise AttributeError(
+            "Ratings.n_raters was removed in 0.1.0; use len(ratings.raters) instead."
+        )
 
     def wide(self) -> pd.DataFrame:
         wide = self._long.pivot_table(

@@ -113,3 +113,14 @@ def test_ci_reliable_tracks_effective_count() -> None:
     thin = krippendorff_alpha(r, level="ordinal", n_bootstrap=50, seed=42)
     assert thin.n_effective < 100
     assert thin.ci_reliable is False
+
+
+def test_alpha_ci_is_nan_when_no_resamples_survive() -> None:
+    # n_bootstrap=0 → boot is empty → CI should be NaN (not point-collapsed).
+    matrix = [[1, 2], [2, 1]]
+    r = _ratings_from_matrix(matrix)
+    res = krippendorff_alpha(r, n_bootstrap=0)
+    assert np.isnan(res.ci_low)
+    assert np.isnan(res.ci_high)
+    assert res.n_effective == 0
+    assert res.ci_reliable is False

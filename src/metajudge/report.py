@@ -3,8 +3,10 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Hashable, Mapping
 from dataclasses import dataclass
+from typing import Never
 
 from metajudge.data import Ratings
 from metajudge.dif import DifResult, logistic_dif
@@ -30,6 +32,18 @@ class Flags:
 
     conditioner_is_external: bool
     alpha_ci_degraded: bool
+
+    @property
+    def converged(self) -> Never:
+        raise AttributeError(
+            "Flags.converged was removed in 0.1.0; use card.dif.converged directly."
+        )
+
+    @property
+    def po_violation(self) -> Never:
+        raise AttributeError(
+            "Flags.po_violation was removed in 0.1.0; use card.dif.po_violation directly."
+        )
 
 
 @dataclass(frozen=True)
@@ -114,7 +128,8 @@ class ReportCard:
             f"(conditioner: {d.conditioner_source}, n={d.n_obs})",
             f"- Uniform DIF: chi2(1)={d.chi2_uniform:.2f}, p={d.p_uniform:.4f}",
             f"- Nonuniform DIF: chi2(1)={d.chi2_nonuniform:.2f}, p={d.p_nonuniform:.4f}",
-            f"- Effect size (Nagelkerke R2 delta): {d.nagelkerke_r2_delta:.3f} "
+            f"- Effect size (Nagelkerke R2 delta): "
+            f"{'—' if math.isnan(d.nagelkerke_r2_delta) else f'{d.nagelkerke_r2_delta:.3f}'} "
             f"(Jodoin-Gierl class {d.dif_class})",
         ]
         return "\n".join(lines)

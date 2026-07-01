@@ -84,3 +84,15 @@ def test_from_eval_instruments_missing_stratum_mapping_raises() -> None:
     frame = pd.DataFrame({"quality": [1, 2]}, index=["i1", "i2"])
     with pytest.raises(ValueError, match="missing stratum"):
         Ratings.from_eval_instruments({"judge": frame}, criterion="quality", stratum={"i1": "a"})
+
+
+def test_n_items_removed_raises_with_migration_hint() -> None:
+    r = Ratings.from_long(_long(), item="item", rater="rater", score="score")
+    with pytest.raises(AttributeError, match=r"len\(ratings\.items\)"):
+        _ = r.n_items  # type: ignore[attr-defined]
+
+
+def test_n_raters_removed_raises_with_migration_hint() -> None:
+    r = Ratings.from_long(_long(), item="item", rater="rater", score="score")
+    with pytest.raises(AttributeError, match=r"len\(ratings\.raters\)"):
+        _ = r.n_raters  # type: ignore[attr-defined]

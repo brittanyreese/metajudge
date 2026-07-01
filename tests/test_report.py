@@ -308,3 +308,15 @@ def test_flags_alpha_ci_degraded_true_when_thin_bootstrap_no_drops() -> None:
     )
     card = _card_with_alpha(alpha)
     assert card.flags.alpha_ci_degraded is True
+
+
+def test_flags_removed_converged_raises_with_migration_hint() -> None:
+    card = _card(converged=True)
+    with pytest.raises(AttributeError, match=r"card\.dif\.converged"):
+        _ = card.flags.converged  # type: ignore[attr-defined]
+
+
+def test_flags_removed_po_violation_raises_with_migration_hint() -> None:
+    card = _card(converged=True)
+    with pytest.raises(AttributeError, match=r"card\.dif\.po_violation"):
+        _ = card.flags.po_violation  # type: ignore[attr-defined]

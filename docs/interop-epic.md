@@ -1,6 +1,6 @@
 # Interop: auditing an Epic evaluation-instruments judge
 
-Epic's [`evaluation-instruments`](https://github.com/epic-open-source/evaluation-instruments) is a judge runner: it takes clinical text and a rubric (PDSQI-9, the 5 C's, and others) and returns an LLM's scores per sample per criterion through `post.frame_from_evals`. metajudge is the auditor: it takes those scores and reports whether the judge instrument is reliable and whether it functions differently across a stratum. The two compose directly.
+Epic's [`evaluation-instruments`](https://github.com/epic-open-source/evaluation-instruments) is a judge runner: it takes evaluation text and a rubric (PDSQI-9, the 5 C's, and others) and returns an LLM's scores per sample per criterion through `post.frame_from_evals`. metajudge is the auditor: it takes those scores -- never the underlying text, so no PHI enters the audit -- and reports whether the judge instrument is reliable and whether it functions differently across a stratum. The two compose directly.
 
 ## The seam
 

@@ -16,3 +16,8 @@ def test_public_symbols_exported() -> None:
         "DifResult",
     ]:
         assert hasattr(metajudge, name), name
+
+
+def test_removed_symbols_absent() -> None:
+    for name in ["brant_test", "BrantResult"]:
+        assert not hasattr(metajudge, name), f"{name} should not be in public API"

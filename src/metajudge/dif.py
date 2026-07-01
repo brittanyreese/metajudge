@@ -18,6 +18,7 @@ fit is scipy alone.
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Hashable, Mapping
 from dataclasses import dataclass
 
@@ -131,7 +132,7 @@ def _brant_test(
 
     beta_stack: NDArray[np.float64] = np.concatenate(betas)  # type: ignore[reportUnknownMemberType]
 
-    def _wald(predictor_cols: list[int]) -> tuple[float, int]:
+    def _wald(predictor_cols: list[int]) -> tuple[float, int, bool]:
         rows = (m - 1) * len(predictor_cols)
         dmat: NDArray[np.float64] = np.zeros((rows, big))
         row = 0
@@ -142,16 +143,26 @@ def _brant_test(
                 row += 1
         d = dmat @ beta_stack
         cov = dmat @ vmat @ dmat.T
+        if np.linalg.cond(cov) > 1e10:
+            return 0.0, rows, False
         stat = float(d @ np.linalg.pinv(cov) @ d)
-        return stat, rows
+        return stat, rows, True
 
     all_slopes = list(range(1, q))
-    omnibus_chi2, omnibus_df = _wald(all_slopes)
+    omnibus_chi2, omnibus_df, ok_wald = _wald(all_slopes)
+    if not ok_wald:
+        return _BrantResult(
+            omnibus_chi2=0.0, omnibus_df=0, omnibus_p=1.0, per_predictor={}, converged=False
+        )
     omnibus_p = float(chi2.sf(omnibus_chi2, omnibus_df)) if omnibus_df > 0 else 1.0  # type: ignore[reportUnknownMemberType]
 
     per_predictor: dict[str, tuple[float, int, float]] = {}
     for idx in range(p):
-        stat, df = _wald([1 + idx])
+        stat, df, ok_wald = _wald([1 + idx])
+        if not ok_wald:
+            return _BrantResult(
+                omnibus_chi2=0.0, omnibus_df=0, omnibus_p=1.0, per_predictor={}, converged=False
+            )
         pval = float(chi2.sf(stat, df)) if df > 0 else 1.0  # type: ignore[reportUnknownMemberType]
         per_predictor[names[idx]] = (stat, df, pval)
 
@@ -195,7 +206,11 @@ def _classify_jodoin_gierl(r2_delta: float) -> str:
     Jodoin & Gierl (2001): negligible (A) below 0.035, moderate (B) in
     ``[0.035, 0.070)``, large (C) at or above 0.070. These are an R-squared magnitude
     rule, not the ETS Mantel-Haenszel delta classification.
+
+    Returns ``"?"`` when ``r2_delta`` is NaN (signals an optimization failure upstream).
     """
+    if np.isnan(r2_delta):  # type: ignore[reportUnknownMemberType]
+        return "?"
     if r2_delta < _JG_NEGLIGIBLE:
         return "A"
     if r2_delta < _JG_LARGE:
@@ -324,7 +339,7 @@ def _emit_item_rows(
     count = int(rated.size)
     if count < 2:
         raise ValueError(
-            "cannot form an independent conditioner: an item has a single rating and no "
+            f"cannot form an independent conditioner: an item has {count} rating(s) and no "
             "explicit conditioner was given. Provide >=2 raters per item or pass conditioner=."
         )
     total = float(rated.sum())
@@ -398,7 +413,8 @@ def _dif_stats(
     ll3, c3 = _fit_proportional_odds(endog, x3)
 
     chi2_total, ok_total = _lr_chi2(ll1, ll3)
-    r2_delta = max(0.0, _nagelkerke(ll3, ll_null, n) - _nagelkerke(ll1, ll_null, n))
+    r2_raw = _nagelkerke(ll3, ll_null, n) - _nagelkerke(ll1, ll_null, n)
+    r2_delta = max(0.0, r2_raw) if ok_total else float("nan")
 
     if not want_split:
         return _DifStats(
@@ -476,6 +492,14 @@ def logistic_dif(
             fall in one category; or if the conditioner is constant or near-perfectly
             collinear with the group, so DIF is not identifiable.
     """
+    if conditioner is None and len(ratings.raters) == 2:
+        warnings.warn(
+            "With only 2 raters the leave-one-rater-out rest score equals the other rater's "
+            "score on each item, making the conditioner dependent on the studied response. "
+            "Provide an external conditioner for a valid DIF analysis.",
+            UserWarning,
+            stacklevel=2,
+        )
     strata = ratings.strata()
     for level in (focal, reference):
         if level not in strata:
@@ -516,6 +540,21 @@ def logistic_dif(
 
     stats = _dif_stats(scores, groups, cond_rows, want_split=True, po_alpha=po_alpha)
 
+    if stats.n_obs < 500:
+        if stats.n_obs < 200:
+            _n_obs_msg = (
+                f"n_obs={stats.n_obs}: the Jodoin-Gierl A/B/C classification was calibrated on "
+                "educational testing datasets with ≥500 examinees; at this sample size the "
+                "R²-change thresholds overlap and the class should be treated as indicative only."
+            )
+        else:
+            _n_obs_msg = (
+                f"n_obs={stats.n_obs}: the Jodoin-Gierl A/B/C classification was calibrated on "
+                ">=500 examinees; between 200-499 the thresholds have moderate calibration "
+                "support and the class should be treated as indicative rather than definitive."
+            )
+        warnings.warn(_n_obs_msg, UserWarning, stacklevel=2)
+
     return DifResult(
         chi2_total=stats.chi2_total,
         chi2_uniform=stats.chi2_uniform,
@@ -537,6 +576,12 @@ def logistic_dif(
 # Below this many surviving resamples the 2.5/97.5 percentile CI is too thin to trust;
 # callers should read ``ci_reliable`` (or ``n_effective``) rather than the bounds alone.
 _MIN_EFFECTIVE = 100
+
+# With fewer items per group the bootstrap draws from too small a space of distinct
+# resamples (n_items^n_items) for the percentile CI to be stable, even if n_effective
+# clears the convergence floor.  Five items gives 3125 distinct draws; below that the
+# CI should be treated as unstable.
+_MIN_CLUSTER_SIZE = 5
 
 
 @dataclass(frozen=True)
@@ -626,6 +671,15 @@ def cluster_bootstrap_dif(
     rng = np.random.default_rng(seed)
     n_focal = len(focal_items)
     n_reference = len(reference_items)
+    if n_focal < _MIN_CLUSTER_SIZE or n_reference < _MIN_CLUSTER_SIZE:
+        warnings.warn(
+            f"cluster_bootstrap_dif: focal group has {n_focal} item(s), reference has "
+            f"{n_reference}; with fewer than {_MIN_CLUSTER_SIZE} items per group the bootstrap "
+            "draws from too small a space of distinct resamples for a stable percentile CI "
+            "(see ci_reliable). Treat the CI bounds as indicative only.",
+            UserWarning,
+            stacklevel=2,
+        )
     chi2_totals: list[float] = []
     r2_deltas: list[float] = []
 
@@ -670,6 +724,13 @@ def cluster_bootstrap_dif(
         r2_low, r2_high = (float(x) for x in np.percentile(r2_deltas, [pct_low, pct_high]))  # type: ignore[reportUnknownMemberType]
         c2_low, c2_high = (float(x) for x in np.percentile(chi2_totals, [pct_low, pct_high]))  # type: ignore[reportUnknownMemberType]
     else:
+        warnings.warn(
+            f"cluster_bootstrap_dif: all {n_boot} resamples were degenerate or failed to "
+            "converge; CI bounds are NaN. Inspect the base result for identifiability issues "
+            "or provide an external conditioner.",
+            UserWarning,
+            stacklevel=2,
+        )
         r2_low = r2_high = float("nan")
         c2_low = c2_high = float("nan")
 

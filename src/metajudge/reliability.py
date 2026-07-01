@@ -13,6 +13,7 @@ from metajudge.data import Ratings
 
 _LevelOfMeasurement = Literal["nominal", "ordinal", "interval", "ratio"]
 
+# ponytail: mirrors _MIN_EFFECTIVE in dif.py — keep in sync if threshold changes
 _MIN_EFFECTIVE = 100  # min surviving bootstrap resamples for a trustworthy percentile CI
 
 
@@ -83,7 +84,7 @@ def krippendorff_alpha(
     if boot:
         ci_low, ci_high = (float(x) for x in np.percentile(boot, [2.5, 97.5]))  # type: ignore[reportUnknownMemberType]
     else:
-        ci_low, ci_high = point, point
+        ci_low, ci_high = float("nan"), float("nan")
     return AlphaResult(
         alpha=point,
         ci_low=ci_low,
