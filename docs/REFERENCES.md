@@ -67,7 +67,7 @@ Magis, D., Beland, S., Tuerlinckx, F., and De Boeck, P. (2010). A general framew
 
 ### Proportional-odds assumption diagnostic
 
-Brant, R. (1990). Assessing proportionality in the proportional odds model for ordinal logistic regression. Biometrics, 46(4), 1171-1178. doi:10.2307/2532457 (The Wald-type test `diagnostics.brant_test` implements.)
+Brant, R. (1990). Assessing proportionality in the proportional odds model for ordinal logistic regression. Biometrics, 46(4), 1171-1178. doi:10.2307/2532457 (The Wald-type test `dif._brant_test` implements.)
 
 Harrell, F. E. (2015). Regression Modeling Strategies (2nd ed.). Springer. doi:10.1007/978-3-319-19425-7 (Source for the Brant-test oversensitivity caveat at large N surfaced in the report card.)
 
