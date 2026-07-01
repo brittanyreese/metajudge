@@ -16,6 +16,7 @@ set -euo pipefail
 # not in this set is blocked. To add a genuinely new top-level file or dir,
 # add it here in the same commit.
 allowed_toplevel=(
+  ".env.example"
   ".github"
   ".gitignore"
   ".pre-commit-config.yaml"
@@ -34,6 +35,13 @@ allowed_toplevel=(
   "src"
   "tests"
   "uv.lock"
+)
+
+# Explicit exceptions to the secret denylist below -- exact filenames that are
+# templates, never real values. Checked first so the broad `.env*` pattern
+# below doesn't sweep up the conventional template file.
+secret_safe_literals=(
+  '(^|/)\.env\.example$'
 )
 
 # Secrets and key material can appear nested anywhere, so they stay on an
@@ -63,13 +71,24 @@ blocked=""
 while IFS= read -r file; do
   [ -z "$file" ] && continue
 
-  # Secret denylist (matched anywhere in the path).
-  for p in "${secret_patterns[@]}"; do
+  # Safe-template exceptions (checked before the secret denylist).
+  is_safe=""
+  for p in "${secret_safe_literals[@]}"; do
     if printf '%s\n' "$file" | grep -qE "$p"; then
-      blocked="${blocked}  ${file}  (secret/key material)\n"
-      continue 2
+      is_safe="yes"
+      break
     fi
   done
+
+  # Secret denylist (matched anywhere in the path).
+  if [ -z "$is_safe" ]; then
+    for p in "${secret_patterns[@]}"; do
+      if printf '%s\n' "$file" | grep -qE "$p"; then
+        blocked="${blocked}  ${file}  (secret/key material)\n"
+        continue 2
+      fi
+    done
+  fi
 
   # Private-subtree denylist (nested under an allowed root).
   for p in "${nested_deny_patterns[@]}"; do

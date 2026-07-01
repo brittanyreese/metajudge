@@ -54,6 +54,7 @@ only-include = [
     "sim",
     "scripts",
     "examples",
+    ".env.example",
     "docs/decisions",
     "docs/roadmap.md",
     "docs/PROVENANCE.md",
