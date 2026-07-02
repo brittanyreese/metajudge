@@ -48,6 +48,29 @@ def test_icc_matches_pingouin_oracle() -> None:
     # (older pingouin labelled these ICC2/ICC2k).
     assert res.icc1 == pytest.approx(float(table.loc["ICC(A,1)", "ICC"]), abs=1e-6)
     assert res.icck == pytest.approx(float(table.loc["ICC(A,k)", "ICC"]), abs=1e-6)
+    # McGraw & Wong (1996) exact F-based CI, absolute agreement. pingouin rounds the
+    # reported CI to 2 dp, so match at that tolerance; the literal pins below carry the
+    # full-precision regression anchor.
+    ci1 = table.loc["ICC(A,1)", "CI95"]
+    cik = table.loc["ICC(A,k)", "CI95"]
+    assert res.icc1_ci_low == pytest.approx(float(ci1[0]), abs=1e-2)
+    assert res.icc1_ci_high == pytest.approx(float(ci1[1]), abs=1e-2)
+    assert res.icck_ci_low == pytest.approx(float(cik[0]), abs=1e-2)
+    assert res.icck_ci_high == pytest.approx(float(cik[1]), abs=1e-2)
+
+
+def test_icc_ci_matches_pinned_mcgraw_wong_values() -> None:
+    # Full-precision pin of the McGraw & Wong (1996) Case-2 (absolute-agreement) CI for
+    # the Shrout-Fleiss table, cross-checked against pingouin's 2-dp report [0.02, 0.76]
+    # and [0.07, 0.93]. Reference wins over any literal drift.
+    res = icc(_wide_to_ratings(_shrout_fleiss_table()))
+    assert res.icc1_ci_low == pytest.approx(0.018787, abs=1e-5)
+    assert res.icc1_ci_high == pytest.approx(0.761084, abs=1e-5)
+    assert res.icck_ci_low == pytest.approx(0.071137, abs=1e-5)
+    assert res.icck_ci_high == pytest.approx(0.927232, abs=1e-5)
+    # ICC(A,k) CI is the Spearman-Brown step-up of the ICC(A,1) CI bounds.
+    assert res.icc1_ci_low < res.icc1 < res.icc1_ci_high
+    assert res.icck_ci_low < res.icck < res.icck_ci_high
 
 
 def test_icc_rejects_degenerate_dimensions() -> None:
