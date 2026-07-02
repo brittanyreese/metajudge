@@ -195,6 +195,7 @@ class DifResult:
     converged: bool
     po_violation: bool
     conditioner_group_corr: float
+    conditioner_common_support: float
 
     @property
     def conditioner_is_external(self) -> bool:
@@ -351,6 +352,28 @@ def _emit_item_rows(
         cond_rows.append((total - float(value)) / (count - 1))
         scores.append(float(value))
         groups.append(group)
+
+
+def _common_support(focal_vals: NDArray[np.float64], reference_vals: NDArray[np.float64]) -> float:
+    """Fraction of per-item conditioner values falling inside the overlapping range.
+
+    With ``F`` = ``focal_vals`` and ``R`` = ``reference_vals``, the overlapping range is
+    ``[lo, hi] = [max(min(F), min(R)), min(max(F), max(R))]``. The result is the count of
+    values (from both ``F`` and ``R``) inside ``[lo, hi]``, divided by ``len(F) + len(R)``.
+    Disjoint ranges (``lo > hi``) give ``0.0``; identical ranges give ``1.0``.
+
+    Returns ``nan`` if either side is empty (defensive: the DIF call already refuses
+    upstream when a group has no items, so this guards only against divide-by-zero).
+    """
+    if focal_vals.size == 0 or reference_vals.size == 0:
+        return float("nan")
+    lo = max(float(focal_vals.min()), float(reference_vals.min()))
+    hi = min(float(focal_vals.max()), float(reference_vals.max()))
+    if lo > hi:
+        return 0.0
+    f_in = int(np.sum((focal_vals >= lo) & (focal_vals <= hi)))
+    r_in = int(np.sum((reference_vals >= lo) & (reference_vals <= hi)))
+    return float(f_in + r_in) / float(focal_vals.size + reference_vals.size)
 
 
 def _dif_stats(
@@ -533,6 +556,8 @@ def logistic_dif(
     scores: list[float] = []
     groups: list[float] = []
     cond_rows: list[float] = []
+    focal_cond_vals: list[float] = []
+    reference_cond_vals: list[float] = []
     source = "external" if conditioner is not None else "rest_score"
 
     for row_idx, item in enumerate(items_list):
@@ -547,16 +572,26 @@ def logistic_dif(
             item_cond = float(conditioner[item])
         else:
             item_cond = None
+        is_focal = item in focal_items
         _emit_item_rows(
             rated,
-            is_focal=item in focal_items,
+            is_focal=is_focal,
             item_cond=item_cond,
             scores=scores,
             groups=groups,
             cond_rows=cond_rows,
         )
+        # Per-item representative value for the common-support diagnostic: the external
+        # conditioner value if given, otherwise the item's mean rating (the natural
+        # item-level quality summary the rest-score default centers on).
+        representative = item_cond if item_cond is not None else float(rated.mean())
+        (focal_cond_vals if is_focal else reference_cond_vals).append(representative)
 
     stats = _dif_stats(scores, groups, cond_rows, want_split=True, po_alpha=po_alpha)
+    common_support = _common_support(
+        np.asarray(focal_cond_vals, dtype=np.float64),
+        np.asarray(reference_cond_vals, dtype=np.float64),
+    )
 
     if stats.n_obs < 500:
         if stats.n_obs < 200:
@@ -589,6 +624,7 @@ def logistic_dif(
         converged=stats.converged,
         po_violation=stats.po_violation,
         conditioner_group_corr=stats.conditioner_group_corr,
+        conditioner_common_support=common_support,
     )
 
 
