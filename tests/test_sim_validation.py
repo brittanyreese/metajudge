@@ -5,13 +5,73 @@ from __future__ import annotations
 import pytest
 from sim.dgp import DgpParams
 from sim.harness import run_cell, run_cell_bootstrap, summarize_cell
-from sim.validation import band_calibration_cells, conditioner_comparison_cells, type1_power_cells
+from sim.validation import (
+    band_calibration_cells,
+    cluster_stress_cells,
+    conditioner_comparison_cells,
+    overlap_external_degraded_cells,
+    overlap_rest_cells,
+    po_robustness_cells,
+    sample_size_cells,
+    type1_power_cells,
+    unbalanced_cells,
+)
 
 
 def test_validation_module_imports() -> None:
     assert callable(type1_power_cells)
     assert callable(band_calibration_cells)
     assert callable(conditioner_comparison_cells)
+
+
+def test_cluster_stress_cells_cross_the_factors() -> None:
+    """8 null cells: n_raters {3,8} x rater_sd {0.5,1.5} x n_items {25,100}."""
+    cells = cluster_stress_cells()
+    assert len(cells) == 8
+    assert all(c.dif_uniform == 0.0 and c.dif_nonuniform == 0.0 for c in cells)
+    combos = {(c.n_raters, c.rater_sd, c.n_items_per_group) for c in cells}
+    assert combos == {(r, sd, n) for r in (3, 8) for sd in (0.5, 1.5) for n in (25, 100)}
+
+
+def test_overlap_rest_cells_sweep_impact_and_raters() -> None:
+    """10 null cells for the rest-score confounded regime: mu_focal x n_raters."""
+    cells = overlap_rest_cells()
+    assert len(cells) == 10
+    assert all(c.dif_uniform == 0.0 for c in cells)
+    assert {c.mu_focal for c in cells} == {0.0, -0.5, -1.0, -1.5, -2.0}
+    assert {c.n_raters for c in cells} == {3, 8}
+
+
+def test_overlap_external_degraded_cells() -> None:
+    """6 null cells: conditioner_reliability {0.8,0.6,0.4} x mu_focal {-1,-2}."""
+    cells = overlap_external_degraded_cells()
+    assert len(cells) == 6
+    assert {c.conditioner_reliability for c in cells} == {0.8, 0.6, 0.4}
+    assert {c.mu_focal for c in cells} == {-1.0, -2.0}
+
+
+def test_po_robustness_cells_cross_violation_and_dif() -> None:
+    """po_violation {0.3,0.6} x dif_uniform {0,1.0} = 4 cells."""
+    cells = po_robustness_cells()
+    assert len(cells) == 4
+    assert {(c.po_violation, c.dif_uniform) for c in cells} == {
+        (v, d) for v in (0.3, 0.6) for d in (0.0, 1.0)
+    }
+
+
+def test_sample_size_cells_power_curve() -> None:
+    """Power curve at dif_uniform=1.0 over four sample sizes."""
+    cells = sample_size_cells()
+    assert [c.n_items_per_group for c in cells] == [25, 50, 100, 200]
+    assert all(c.dif_uniform == 1.0 for c in cells)
+
+
+def test_unbalanced_cells_are_100_vs_33() -> None:
+    """Null + DIF at 100 reference vs 33 focal items."""
+    cells = unbalanced_cells()
+    assert len(cells) == 2
+    assert all(c.n_items_per_group == 100 and c.n_items_focal == 33 for c in cells)
+    assert {c.dif_uniform for c in cells} == {0.0, 1.0}
 
 
 def test_type1_control_quick() -> None:

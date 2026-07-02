@@ -27,7 +27,11 @@ FOCAL = "focal"
 
 @dataclass(frozen=True)
 class DgpParams:
-    """One cell of the simulation design. n_items_per_group counts judged outputs."""
+    """One cell of the simulation design. n_items_per_group counts judged outputs.
+
+    ``n_items_focal`` overrides the focal-group item count for unbalanced designs;
+    ``None`` (default) keeps the groups balanced at ``n_items_per_group`` each.
+    """
 
     n_items_per_group: int
     n_raters: int
@@ -40,6 +44,7 @@ class DgpParams:
     dif_nonuniform: float = 0.0
     po_violation: float = 0.0
     conditioner_reliability: float = 1.0
+    n_items_focal: int | None = None
 
 
 @dataclass(frozen=True)
@@ -66,6 +71,8 @@ def _validate(p: DgpParams) -> None:
         raise ValueError("n_raters must be >= 1")
     if p.n_items_per_group < 1:
         raise ValueError("n_items_per_group must be >= 1")
+    if p.n_items_focal is not None and p.n_items_focal < 1:
+        raise ValueError("n_items_focal must be >= 1 when given")
 
 
 def _category_probs(eta_by_cut: NDArray[np.float64]) -> NDArray[np.float64]:
@@ -90,15 +97,20 @@ def simulate(params: DgpParams, *, seed: int) -> SimSample:
     centered: NDArray[np.float64] = np.linspace(1.0, -1.0, k_cuts)
     slope_by_cut: NDArray[np.float64] = params.trait_slope + params.po_violation * centered
 
-    n = params.n_items_per_group
-    theta_ref: NDArray[np.float64] = rng.normal(0.0, 1.0, n)
-    theta_foc: NDArray[np.float64] = rng.normal(params.mu_focal, 1.0, n)
+    n_ref = params.n_items_per_group
+    n_foc = params.n_items_focal if params.n_items_focal is not None else n_ref
+    theta_ref: NDArray[np.float64] = rng.normal(0.0, 1.0, n_ref)
+    theta_foc: NDArray[np.float64] = rng.normal(params.mu_focal, 1.0, n_foc)
     u: NDArray[np.float64] = rng.normal(0.0, params.rater_sd, params.n_raters)
 
+    # Interleave ref/foc for the common prefix so balanced cells consume the RNG
+    # stream exactly as before n_items_focal existed (keeps pinned seeds valid).
     item_theta: list[tuple[str, float, int]] = []
-    for i in range(n):
-        item_theta.append((f"ref_{i}", float(theta_ref[i]), 0))
-        item_theta.append((f"foc_{i}", float(theta_foc[i]), 1))
+    for i in range(max(n_ref, n_foc)):
+        if i < n_ref:
+            item_theta.append((f"ref_{i}", float(theta_ref[i]), 0))
+        if i < n_foc:
+            item_theta.append((f"foc_{i}", float(theta_foc[i]), 1))
 
     theta_map: dict[Hashable, float] = {}
     rows: list[dict[str, object]] = []
