@@ -9,7 +9,13 @@ from dataclasses import dataclass
 from typing import Never
 
 from metajudge.data import Ratings
-from metajudge.dif import DifResult, logistic_dif
+from metajudge.dif import (
+    _JG_NEGLIGIBLE,  # pyright: ignore[reportPrivateUsage]  # one Jodoin-Gierl threshold, one source
+    ClusterBootstrapDif,
+    DifResult,
+    cluster_bootstrap_dif,
+    logistic_dif,
+)
 from metajudge.reliability import (
     AlphaResult,
     IccResult,
@@ -32,6 +38,15 @@ class Flags:
 
     conditioner_is_external: bool
     alpha_ci_degraded: bool
+    dif_robustly_nonnegligible: bool | None
+    """Clustering-robust DIF verdict, or ``None`` when it was not assessed.
+
+    ``True`` when the item-cluster bootstrap's Nagelkerke R-squared-change CI lower bound
+    clears the Jodoin-Gierl negligible band (robustly at least moderate DIF); ``False`` when
+    the CI reaches into the negligible band. ``None`` when no bootstrap was run
+    (``audit(robust=False)``) or the bootstrap CI is unreliable -- the analytic p-values on
+    the card are anti-conservative under clustering and are not a robust significance test.
+    """
 
     @property
     def converged(self) -> Never:
@@ -51,6 +66,7 @@ class ReportCard:
     alpha: AlphaResult
     icc: IccResult
     dif: DifResult
+    dif_bootstrap: ClusterBootstrapDif | None = None
 
     @property
     def flags(self) -> Flags:
@@ -59,7 +75,20 @@ class ReportCard:
             alpha_ci_degraded=(
                 self.alpha.n_effective < self.alpha.n_bootstrap or not self.alpha.ci_reliable
             ),
+            dif_robustly_nonnegligible=self._dif_robustly_nonnegligible(),
         )
+
+    def _dif_robustly_nonnegligible(self) -> bool | None:
+        """Clustering-robust DIF verdict from the item-cluster bootstrap CI, or None.
+
+        None when no bootstrap was run or its CI is unreliable (too few surviving resamples,
+        or NaN bounds). Otherwise the verdict is whether the R-squared-change CI lower bound
+        clears the Jodoin-Gierl negligible band.
+        """
+        bt = self.dif_bootstrap
+        if bt is None or not bt.ci_reliable or math.isnan(bt.r2_delta_ci_low):
+            return None
+        return bt.r2_delta_ci_low >= _JG_NEGLIGIBLE
 
     def to_markdown(self) -> str:
         a = self.alpha
@@ -114,6 +143,7 @@ class ReportCard:
                 "",
                 *notes,
             ]
+        r2_str = "—" if math.isnan(d.nagelkerke_r2_delta) else f"{d.nagelkerke_r2_delta:.3f}"
         lines = [
             "# metajudge report card",
             "",
@@ -126,13 +156,54 @@ class ReportCard:
             *notes,
             f"- {d.focal_level} vs {d.reference_level} "
             f"(conditioner: {d.conditioner_source}, n={d.n_obs})",
-            f"- Uniform DIF: chi2(1)={d.chi2_uniform:.2f}, p={d.p_uniform:.4f}",
-            f"- Nonuniform DIF: chi2(1)={d.chi2_nonuniform:.2f}, p={d.p_nonuniform:.4f}",
-            f"- Effect size (Nagelkerke R2 delta): "
-            f"{'—' if math.isnan(d.nagelkerke_r2_delta) else f'{d.nagelkerke_r2_delta:.3f}'} "
-            f"(Jodoin-Gierl class {d.dif_class})",
+            # The screen's decision variable leads: effect-size magnitude and its A/B/C class.
+            f"- Effect size (Nagelkerke R2 delta): {r2_str} (Jodoin-Gierl class {d.dif_class})",
+            *self._robust_flag_lines(),
+            # Analytic component tests: kept for the uniform/nonuniform shape, but explicitly
+            # tagged, because the i.i.d. pooling makes their p-values anti-conservative under
+            # the crossed rater x item design and NOT a clustering-robust significance test.
+            f"- Uniform DIF: chi2(1)={d.chi2_uniform:.2f}, p={d.p_uniform:.4f} "
+            "[analytic, unclustered]",
+            f"- Nonuniform DIF: chi2(1)={d.chi2_nonuniform:.2f}, p={d.p_nonuniform:.4f} "
+            "[analytic, unclustered]",
         ]
         return "\n".join(lines)
+
+    def _robust_flag_lines(self) -> list[str]:
+        """The clustering-robust DIF flag line(s): the bootstrap verdict, or 'not assessed'.
+
+        When no bootstrap was run this states significance was not clustering-assessed and
+        points to the robust path, so the tagged analytic p-values below are never read as a
+        significance test. When a bootstrap is present it reports the R-squared-change CI and
+        the verdict (or that the CI is indicative-only / unavailable).
+        """
+        bt = self.dif_bootstrap
+        if bt is None:
+            return [
+                "- Clustering-robust significance: not assessed. The analytic p-values below "
+                "are anti-conservative under the crossed rater x item design; run "
+                "audit(robust=True) or cluster_bootstrap_dif() for a clustering-robust flag."
+            ]
+        pct = round(bt.ci_level * 100)
+        counts = f"item-cluster bootstrap, {bt.n_effective}/{bt.n_boot} resamples"
+        if math.isnan(bt.r2_delta_ci_low):
+            return [
+                f"- Clustering-robust flag: unavailable — all bootstrap resamples were "
+                f"degenerate ({counts})."
+            ]
+        ci = f"R2 delta {pct}% CI [{bt.r2_delta_ci_low:.3f}, {bt.r2_delta_ci_high:.3f}], {counts}"
+        verdict = self._dif_robustly_nonnegligible()
+        if verdict is None:
+            return [
+                f"- Clustering-robust flag: indicative only — fewer than 100 resamples "
+                f"survived, so the CI is not trustworthy ({ci}). Read the point estimate."
+            ]
+        label = (
+            "robustly non-negligible DIF"
+            if verdict
+            else "no robust DIF (CI reaches the negligible band)"
+        )
+        return [f"- Clustering-robust flag: {label} ({ci})."]
 
 
 def audit(
@@ -143,9 +214,34 @@ def audit(
     level: str = "ordinal",
     seed: int = 0,
     conditioner: Mapping[Hashable, float] | None = None,
+    robust: bool = False,
+    n_boot: int = 1000,
 ) -> ReportCard:
+    """Build the two-pillar report card.
+
+    ``robust=False`` (default) is the fast analytic screen: it reports the DIF effect size
+    and A/B/C class but does not assess clustering-robust significance. ``robust=True`` runs
+    the item-cluster bootstrap (``n_boot`` resamples) so the card can report a
+    clustering-robust flag from the Nagelkerke R-squared-change CI, at the cost of the extra
+    refits. The analytic p-values are anti-conservative under the crossed rater x item
+    design either way, and the card tags them as such.
+    """
+    if robust:
+        bootstrap = cluster_bootstrap_dif(
+            ratings,
+            focal=focal,
+            reference=reference,
+            conditioner=conditioner,
+            n_boot=n_boot,
+            seed=seed,
+        )
+        dif = bootstrap.base
+    else:
+        bootstrap = None
+        dif = logistic_dif(ratings, focal=focal, reference=reference, conditioner=conditioner)
     return ReportCard(
         alpha=krippendorff_alpha(ratings, level=level, seed=seed),
         icc=icc(ratings),
-        dif=logistic_dif(ratings, focal=focal, reference=reference, conditioner=conditioner),
+        dif=dif,
+        dif_bootstrap=bootstrap,
     )

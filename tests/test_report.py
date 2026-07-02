@@ -5,9 +5,25 @@ import pandas as pd
 import pytest
 
 from metajudge.data import Ratings
-from metajudge.dif import DifResult, logistic_dif
+from metajudge.dif import ClusterBootstrapDif, DifResult, logistic_dif
 from metajudge.reliability import AlphaResult, IccResult
 from metajudge.report import Flags, ReportCard, audit
+
+
+def _bootstrap(*, r2_low: float, r2_high: float, n_effective: int = 500) -> ClusterBootstrapDif:
+    """A deterministic ClusterBootstrapDif for card-rendering tests (no refits)."""
+    dif = _card(converged=True).dif
+    return ClusterBootstrapDif(
+        base=dif,
+        r2_delta_ci_low=r2_low,
+        r2_delta_ci_high=r2_high,
+        chi2_total_ci_low=0.0,
+        chi2_total_ci_high=5.0,
+        cluster="item",
+        ci_level=0.95,
+        n_boot=1000,
+        n_effective=n_effective,
+    )
 
 
 def _card(*, converged: bool, conditioner_source: str = "rest_score") -> ReportCard:
@@ -177,6 +193,86 @@ def test_markdown_rest_score_caveat_precedes_statistics() -> None:
     md = _card(converged=True, conditioner_source="rest_score").to_markdown()
     assert "fairness clearance" in md
     assert md.index("fairness clearance") < md.index("Uniform DIF")
+
+
+def test_markdown_warns_analytic_dif_pvalues_are_anti_conservative() -> None:
+    # The card's DIF p-values are the analytic i.i.d. likelihood-ratio test, which pools
+    # each (item, rater) cell as independent and is anti-conservative under the crossed
+    # rater x item design. The caveat must sit above the chi-square lines and point to the
+    # cluster bootstrap, so an excerpter cannot read the p-values as clustering-robust.
+    md = _card(converged=True, conditioner_source="rest_score").to_markdown()
+    assert "anti-conservative" in md
+    assert "cluster_bootstrap_dif" in md
+    assert md.index("anti-conservative") < md.index("Uniform DIF")
+
+
+def test_audit_default_has_no_bootstrap() -> None:
+    card = audit(_ratings(), focal="foc", reference="ref", level="ordinal", seed=1)
+    assert card.dif_bootstrap is None
+    assert card.flags.dif_robustly_nonnegligible is None
+
+
+def test_audit_robust_attaches_cluster_bootstrap() -> None:
+    card = audit(
+        _ratings(), focal="foc", reference="ref", level="ordinal", seed=1, robust=True, n_boot=200
+    )
+    assert isinstance(card.dif_bootstrap, ClusterBootstrapDif)
+    assert card.dif_bootstrap.n_boot == 200
+
+
+def test_markdown_fast_omits_robust_significance_and_leads_with_effect_size() -> None:
+    # Fast card: no clustering-robust flag was computed, so significance is "not assessed"
+    # and the analytic p-values are tagged; the effect-size + class line leads the DIF
+    # block (the screen's decision variable), sitting above the analytic detail lines.
+    md = _card(converged=True).to_markdown()
+    assert "not assessed" in md
+    assert "[analytic, unclustered]" in md
+    assert md.index("Nagelkerke") < md.index("Uniform DIF")
+
+
+def test_markdown_robust_shows_cluster_flag_with_effect_size_ci() -> None:
+    card = ReportCard(
+        alpha=_card(converged=True).alpha,
+        icc=_card(converged=True).icc,
+        dif=_card(converged=True).dif,
+        dif_bootstrap=_bootstrap(r2_low=0.05, r2_high=0.12),
+    )
+    md = card.to_markdown()
+    assert "Clustering-robust flag" in md
+    assert "item-cluster bootstrap" in md
+    assert "not assessed" not in md  # significance WAS assessed
+
+
+def test_flags_dif_robustly_nonnegligible_true_when_ci_clears_band() -> None:
+    card = ReportCard(
+        alpha=_card(converged=True).alpha,
+        icc=_card(converged=True).icc,
+        dif=_card(converged=True).dif,
+        dif_bootstrap=_bootstrap(r2_low=0.05, r2_high=0.12),  # lower bound above 0.035
+    )
+    assert card.flags.dif_robustly_nonnegligible is True
+
+
+def test_flags_dif_robustly_nonnegligible_false_when_ci_includes_band() -> None:
+    card = ReportCard(
+        alpha=_card(converged=True).alpha,
+        icc=_card(converged=True).icc,
+        dif=_card(converged=True).dif,
+        dif_bootstrap=_bootstrap(r2_low=0.01, r2_high=0.09),  # lower bound in negligible band
+    )
+    assert card.flags.dif_robustly_nonnegligible is False
+
+
+def test_flags_dif_robustly_nonnegligible_none_when_ci_unreliable() -> None:
+    # Too few resamples survived: the CI is noise, so the robust flag is withheld (None),
+    # not reported as a confident False.
+    card = ReportCard(
+        alpha=_card(converged=True).alpha,
+        icc=_card(converged=True).icc,
+        dif=_card(converged=True).dif,
+        dif_bootstrap=_bootstrap(r2_low=0.05, r2_high=0.12, n_effective=40),
+    )
+    assert card.flags.dif_robustly_nonnegligible is None
 
 
 def test_markdown_flags_dropped_bootstrap_replicates() -> None:
