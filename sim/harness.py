@@ -78,6 +78,9 @@ _RESULT_COLS = [
     "dif_class",
     "brant_po_flag",
     "converged",
+    "conditioner_group_corr",
+    "conditioner_common_support",
+    "conditioner_overlap_weak",
 ]
 
 
@@ -135,6 +138,9 @@ def run_cell(
                     "dif_class": "NA",
                     "brant_po_flag": False,
                     "converged": False,
+                    "conditioner_group_corr": np.nan,
+                    "conditioner_common_support": np.nan,
+                    "conditioner_overlap_weak": False,
                 }
             )
         else:
@@ -149,6 +155,9 @@ def run_cell(
                     "dif_class": res.dif_class,
                     "brant_po_flag": res.po_violation,
                     "converged": res.converged,
+                    "conditioner_group_corr": res.conditioner_group_corr,
+                    "conditioner_common_support": res.conditioner_common_support,
+                    "conditioner_overlap_weak": res.conditioner_overlap_weak,
                 }
             )
     return pd.DataFrame(rows, columns=_RESULT_COLS)

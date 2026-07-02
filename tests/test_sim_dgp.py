@@ -69,6 +69,27 @@ def test_uniform_dif_shifts_focal_scores_at_matched_trait() -> None:
     assert foc_mean > ref_mean + 0.2  # positive b2 lifts focal ratings
 
 
+def test_unbalanced_groups_produce_requested_counts() -> None:
+    params = DgpParams(n_items_per_group=40, n_raters=3, n_items_focal=10)
+    sample = simulate(params, seed=3)
+    long = sample.ratings._long  # type: ignore[reportPrivateUsage]
+    n_ref_items = long[long["stratum"] == REFERENCE]["item"].nunique()
+    n_foc_items = long[long["stratum"] == FOCAL]["item"].nunique()
+    assert (n_ref_items, n_foc_items) == (40, 10)
+
+
+def test_n_items_focal_defaults_to_balanced() -> None:
+    params = DgpParams(n_items_per_group=25, n_raters=3)
+    sample = simulate(params, seed=3)
+    long = sample.ratings._long  # type: ignore[reportPrivateUsage]
+    assert long[long["stratum"] == FOCAL]["item"].nunique() == 25
+
+
+def test_n_items_focal_validates() -> None:
+    with pytest.raises(ValueError, match="n_items_focal"):
+        simulate(DgpParams(n_items_per_group=10, n_raters=3, n_items_focal=0), seed=1)
+
+
 def test_seed_is_reproducible_and_varies() -> None:
     params = DgpParams(n_items_per_group=50, n_raters=3)
     a = simulate(params, seed=99)
