@@ -22,6 +22,10 @@ uv run pytest                # tests (coverage runs automatically)
 
 pre-commit runs these locally; CI runs them on push. Numerical correctness is non-compressible (SPEC R19): every statistic is tested against a pinned external reference (the `krippendorff` package, R `irr`/`TAM`, statsmodels), not internal consistency. A wrong alpha or DIF is a wrong answer, so the reference fixtures are part of the contract.
 
+## AI assistance
+
+The maintainer builds this project with AI coding tools and reviews every change. The quality gates above apply to all changes whatever their origin. Audit records are kept in [docs/reviews/](docs/reviews/) and design decisions as dated ADRs in [docs/decisions/](docs/decisions/).
+
 ## Commits
 
 - Conventional Commits: `type(scope): subject` (subject <=72 chars; body explains the why).
