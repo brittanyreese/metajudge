@@ -612,6 +612,63 @@ def holm_adjust(pvalues: Sequence[float]) -> list[float]:
     return [float(x) for x in adjusted]
 
 
+@dataclass(frozen=True)
+class DifSweep:
+    """A family of DIF comparisons with Holm-corrected familywise p-values.
+
+    ``results`` holds one :class:`DifResult` per requested pair, aligned with ``pairs``
+    (each a ``(focal, reference)`` tuple). ``p_total_holm``/``p_uniform_holm``/
+    ``p_nonuniform_holm`` are the per-pair p-values after a Holm-Bonferroni step-down over
+    the family, one correction per test type, aligned with ``results``. Read the corrected
+    p-values, not the raw ones, when deciding significance across more than one pair.
+    """
+
+    results: list[DifResult]
+    pairs: list[tuple[str, str]]
+    p_total_holm: list[float]
+    p_uniform_holm: list[float]
+    p_nonuniform_holm: list[float]
+
+
+def sweep(
+    ratings: Ratings,
+    *,
+    pairs: Sequence[tuple[str, str]],
+    conditioner: Mapping[Hashable, float] | None = None,
+    po_alpha: float = 1e-3,
+) -> DifSweep:
+    """Run :func:`logistic_dif` over several focal-vs-reference pairs with Holm correction.
+
+    Screening more than one stratum pair makes the per-pair p-values a family whose
+    uncorrected significance inflates the familywise error rate. This runs each pair through
+    the same engine and applies :func:`holm_adjust` across the family, separately for the
+    total, uniform, and nonuniform tests, so the caller reads significance off corrected
+    p-values rather than reassembling the correction by hand. Each ``(focal, reference)``
+    tuple is passed straight to :func:`logistic_dif`; the same ``conditioner`` and
+    ``po_alpha`` apply to every pair.
+
+    Raises:
+        ValueError: if ``pairs`` is empty, or (via :func:`logistic_dif`) for any per-pair
+            identifiability or stratum-lookup failure.
+    """
+    pair_list = [(str(f), str(r)) for f, r in pairs]
+    if not pair_list:
+        raise ValueError("sweep needs at least one (focal, reference) pair")
+    results = [
+        logistic_dif(
+            ratings, focal=focal, reference=reference, conditioner=conditioner, po_alpha=po_alpha
+        )
+        for focal, reference in pair_list
+    ]
+    return DifSweep(
+        results=results,
+        pairs=pair_list,
+        p_total_holm=holm_adjust([r.p_total for r in results]),
+        p_uniform_holm=holm_adjust([r.p_uniform for r in results]),
+        p_nonuniform_holm=holm_adjust([r.p_nonuniform for r in results]),
+    )
+
+
 def _bca_bounds(
     boot: NDArray[np.float64],
     theta_hat: float,
@@ -709,6 +766,7 @@ def cluster_bootstrap_dif(
     n_boot: int = 1000,
     seed: int = 0,
     ci: float = 0.95,
+    po_alpha: float = 1e-3,
 ) -> ClusterBootstrapDif:
     """Cluster bootstrap of :func:`logistic_dif` resampling item blocks.
 
@@ -743,7 +801,9 @@ def cluster_bootstrap_dif(
         raise ValueError(f"ci must be in (0, 1); got {ci}")
     tail = 100.0 * (1.0 - ci) / 2.0
     pct_low, pct_high = tail, 100.0 - tail
-    base = logistic_dif(ratings, focal=focal, reference=reference, conditioner=conditioner)
+    base = logistic_dif(
+        ratings, focal=focal, reference=reference, conditioner=conditioner, po_alpha=po_alpha
+    )
     strata = ratings.strata()
     focal_items: list[Hashable] = list(strata[focal])
     reference_items: list[Hashable] = list(strata[reference])

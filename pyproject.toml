@@ -47,13 +47,14 @@ build-backend = "hatchling.build"
 # Allowlist: ship only intended sources. Without this, hatchling sweeps private
 # working dirs (.memsearch, .superpowers, .claude, .serena) into the tarball.
 # Tests import from sim/ and scripts/, so both are required for a reproducible
-# `pytest` from an unpacked sdist.
+# `pytest` from an unpacked sdist. examples/ (live-LLM scripts, a 54K notebook,
+# sample CSV/JSONL) is repo-only illustration, not shipped: the installable demo
+# is metajudge.load_demo + the wheel's force-included data/demo.csv.
 only-include = [
     "src",
     "tests",
     "sim",
     "scripts",
-    "examples",
     ".env.example",
     "docs/decisions",
     "docs/roadmap.md",
