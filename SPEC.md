@@ -19,7 +19,7 @@ Adjacent methods work is active: Fair-IRT and fl-IRT-ing publish DIF / measureme
 
 ## Key Decisions
 
-- Fairness is the framing; the library ships MIT-free. The fairness/bias tooling category already has free tools (holisticai, Giskard, langfair), so the library is not positioned as a revenue product. Clinical/health is a separate, reactive track on the same core, not a v1 surface.
+- Fairness is the framing; the library ships free under an MIT license. The fairness/bias tooling category already has free tools (holisticai, Giskard, langfair), so the library is not positioned as a revenue product. Clinical/health is a separate, reactive track on the same core, not a v1 surface.
 
 - The paper and preprint are built alongside the library. Running the pillars on real judge outputs generates the empirics for both a methods paper and an arXiv preprint, so the library build and the writeup share data rather than running a separate empirical campaign.
 

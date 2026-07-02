@@ -35,7 +35,7 @@ class Flags:
     """Typed interpretation signals derived from a ReportCard.
 
     Each field answers a trustworthiness or scope question a caller
-    (CLI, notebook, downstream renderer) might ask — without parsing strings.
+    (CLI, notebook, downstream renderer) might ask, without parsing strings.
 
     DIF convergence and proportional-odds signals live on ``ReportCard.dif`` directly
     (``dif.converged``, ``dif.po_violation``, ``dif.conditioner_is_external``); only
@@ -50,7 +50,7 @@ class Flags:
     ``True`` when the item-cluster bootstrap's Nagelkerke R-squared-change CI lower bound
     clears the Jodoin-Gierl negligible band (robustly at least moderate DIF); ``False`` when
     the CI reaches into the negligible band. ``None`` when no bootstrap was run
-    (``audit(robust=False)``) or the bootstrap CI is unreliable -- the analytic p-values on
+    (``audit(robust=False)``) or the bootstrap CI is unreliable: the analytic p-values on
     the card are anti-conservative under clustering and are not a robust significance test.
     """
 
@@ -196,7 +196,7 @@ class ReportCard:
                 "",
                 *notes,
             ]
-        r2_str = "—" if math.isnan(d.nagelkerke_r2_delta) else f"{d.nagelkerke_r2_delta:.3f}"
+        r2_str = "n/a" if math.isnan(d.nagelkerke_r2_delta) else f"{d.nagelkerke_r2_delta:.3f}"
         lines = [
             "# metajudge report card",
             "",
@@ -246,7 +246,7 @@ class ReportCard:
         counts = f"item-cluster bootstrap, {bt.n_effective}/{bt.n_boot} resamples"
         if math.isnan(bt.r2_delta_ci_low):
             return [
-                f"- Clustering-robust flag: unavailable — all bootstrap resamples were "
+                f"- Clustering-robust flag: unavailable; all bootstrap resamples were "
                 f"degenerate ({counts})."
             ]
         method = "BCa" if bt.ci_method == "bca" else "percentile"
@@ -257,7 +257,7 @@ class ReportCard:
         verdict = self._dif_robustly_nonnegligible()
         if verdict is None:
             return [
-                f"- Clustering-robust flag: indicative only — fewer than 100 resamples "
+                f"- Clustering-robust flag: indicative only; fewer than 100 resamples "
                 f"survived, so the CI is not trustworthy ({ci}). Read the point estimate."
             ]
         label = (

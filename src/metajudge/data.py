@@ -46,6 +46,17 @@ class Ratings:
         score: str,
         stratum: str | None = None,
     ) -> Ratings:
+        """Build a validated Ratings from a long-format DataFrame.
+
+        ``df`` carries one row per (item, rater) cell; ``item``, ``rater``, and ``score``
+        name its columns. Pass ``stratum`` to carry a DIF stratum label through. Only the
+        named columns are copied; the input frame is not mutated.
+
+        Raises ``ValueError`` when a named column is missing, when duplicate (item, rater)
+        cells are present (aggregate explicitly first; duplicates that disagree on the
+        stratum label get their own message), when any stratum value is missing, or when
+        one item maps to more than one stratum.
+        """
         cols = [item, rater, score] + ([stratum] if stratum is not None else [])
         missing = [c for c in cols if c not in df.columns]
         if missing:
@@ -87,15 +98,15 @@ class Ratings:
     ) -> Ratings:
         """Build Ratings from per-judge eval-instrument outputs.
 
-        Each value in `frames` is one judge's (or run's) `frame_from_evals` output
+        Each value in ``frames`` is one judge's (or run's) ``frame_from_evals`` output
         (rows = evaluated samples, columns = rubric criteria), keyed by the judge
         id. The measurement frame is rater = judge, item = sample, score = the
-        selected rubric `criterion`. Rubric criteria are a separate facet, audited
+        selected rubric ``criterion``. Rubric criteria are a separate facet, audited
         one at a time, never treated as raters (a criteria-as-raters frame would
         measure internal consistency, not inter-rater reliability). See the interop
         ADR for the cited rationale.
 
-        Pass `stratum` (a sample-id -> stratum-label mapping) to carry a DIF stratum
+        Pass ``stratum`` (a sample-id -> stratum-label mapping) to carry a DIF stratum
         through. Frames are not imported from the eval tool; only their DataFrame
         output is consumed, so this adds no dependency.
         """
@@ -145,9 +156,13 @@ class Ratings:
         )
 
     def wide(self) -> pd.DataFrame:
-        # pivot (not pivot_table) raises on duplicate item-rater cells rather than silently
-        # averaging them. from_long already rejects duplicates, but Ratings can be built
-        # directly, so this keeps the one-cell-per-pair invariant true on every path.
+        """Items x raters score matrix, reindexed to ``self.items`` x ``self.raters``.
+
+        Unrated cells are ``NaN``. Uses ``pivot`` (not ``pivot_table``) so duplicate
+        item-rater cells raise rather than being silently averaged; ``from_long`` already
+        rejects duplicates, but Ratings can be built directly, so this keeps the
+        one-cell-per-pair invariant true on every path.
+        """
         wide = self._long.pivot(
             index=self._item_col,
             columns=self._rater_col,
@@ -159,6 +174,10 @@ class Ratings:
         return self.wide().to_numpy(dtype=float).T
 
     def strata(self) -> dict[str, list[Hashable]]:
+        """Map each stratum label to the sorted list of items it contains.
+
+        Raises ``ValueError`` when the Ratings was built without a stratum column.
+        """
         if self._stratum_col is None:
             raise ValueError("no stratum column was provided")
         out: dict[str, list[Hashable]] = {}

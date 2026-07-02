@@ -53,7 +53,7 @@ def main(jsonl_path: Path, out_path: Path) -> None:
             item = f"{doc_id}_{model_id}"
             family = SYSTEM_FAMILY.get(model_id)
             if family is None:
-                print(f"WARNING: unknown model_id {model_id!r} — skipping")
+                print(f"WARNING: unknown model_id {model_id!r}; skipping")
                 continue
 
             expert_annotations: list[dict[str, int]] = record["expert_annotations"]

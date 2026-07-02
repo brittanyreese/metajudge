@@ -2,8 +2,8 @@
 
 The methods metajudge implements are credited to their original authors here.
 Every entry is carried verbatim from the decision record where the method was
-adopted; the per-method rationale, and any honest caveats about applying a
-method outside its original validation, live in [decisions/](decisions/). This
+adopted; the per-method rationale and any caveats about applying a
+method outside its original validation live in [decisions/](decisions/). This
 file is the consolidated bibliography so the credits travel with the package
 rather than sitting only inside individual ADRs.
 
@@ -73,15 +73,15 @@ Harrell, F. E. (2015). Regression Modeling Strategies (2nd ed.). Springer. doi:1
 
 ## Clustered-error inference (the cluster bootstrap)
 
-Liang, K.-Y., and Zeger, S. L. (1986). Longitudinal data analysis using generalized linear models. Biometrika, 73(1), 13-22.
+Liang, K.-Y., and Zeger, S. L. (1986). Longitudinal data analysis using generalized linear models. Biometrika, 73(1), 13-22. doi:10.1093/biomet/73.1.13
 
-den Noortgate, W. V., and De Boeck, P. (2005). Assessing and explaining differential item functioning using logistic mixed models. Journal of Educational and Behavioral Statistics, 30(4), 443-464.
+Van den Noortgate, W., and De Boeck, P. (2005). Assessing and explaining differential item functioning using logistic mixed models. Journal of Educational and Behavioral Statistics, 30(4), 443-464. doi:10.3102/10769986030004443
 
-French, B. F., and Finch, W. H. (2010). Hierarchical logistic regression: Accounting for multilevel data in DIF detection. Journal of Educational Measurement, 47(3), 299-317.
+French, B. F., and Finch, W. H. (2010). Hierarchical logistic regression: Accounting for multilevel data in DIF detection. Journal of Educational Measurement, 47(3), 299-317. doi:10.1111/j.1745-3984.2010.00115.x
 
-Musca, S. C., et al. (2011). Data with hierarchical structure: impact of intraclass correlation and sample size on Type-I error. Frontiers in Psychology, 2:74.
+Musca, S. C., Kamiejski, R., Nugier, A., Méot, A., Er-Rafiy, A., and Brauer, M. (2011). Data with hierarchical structure: impact of intraclass correlation and sample size on Type-I error. Frontiers in Psychology, 2:74. doi:10.3389/fpsyg.2011.00074
 
-Cameron, A. C., and Miller, D. L. (2015). A practitioner's guide to cluster-robust inference. Journal of Human Resources, 50(2), 317-372.
+Cameron, A. C., and Miller, D. L. (2015). A practitioner's guide to cluster-robust inference. Journal of Human Resources, 50(2), 317-372. doi:10.3368/jhr.50.2.317
 
 ## Rater-mediated measurement and LLM-as-judge evaluation
 

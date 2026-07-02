@@ -5,7 +5,7 @@ Extends the DIF method record (`2026-06-22-e07-dif-ordinal-logistic-regression.m
 
 ## Context
 
-A senior review of the shipped engine flagged that "DIF across output strata," as operationalized here, differs from textbook examinee DIF in a way that can confound the effect it measures. This record states the difference plainly, explains why it is inherent to the design rather than a defect to fix, and pins the engine and report-card behavior that keep it honest.
+A senior review of the shipped engine flagged that "DIF across output strata," as operationalized here, differs from textbook examinee DIF in a way that can confound the effect it measures. This record states the difference plainly, explains why it is inherent to the design rather than a defect to fix, and pins the engine and report-card behavior that keep the caveat in front of the reader.
 
 ## The structural fact
 
@@ -32,7 +32,7 @@ The engine cannot tell regime 2 from regime 3 from the fit alone: both converge 
 1. The estimator is unchanged. A more elaborate conditioner (a nonlinear or multi-term match, or an IRT-theta conditioner as in lordif) is out of the two-pillar E07 scope, and would not remove the confound where the strata barely overlap. It would trade a stated, visible limit for a hidden one.
 2. The confound is stated first-class on the report card, above the statistics, independent of the conditioner source, so a reader who excerpts the headline numbers cannot drop it. The wording frames the effect size as screening evidence, not a confound-free fairness verdict.
 3. The identifiability refusal (regime 1) stays. Refusing an unidentifiable DIF is preferable to reporting an indefensible one, consistent with the single-rater and constant-conditioner guards.
-4. The honest reading is recorded here and referenced from the report card: a non-negligible effect size under this screen flags a stratum pair worth investigating with a stronger design (shared items, or an external conditioner known to overlap across strata), not a settled instrument-level bias finding.
+4. The supported reading is recorded here and referenced from the report card: a non-negligible effect size under this screen flags a stratum pair worth investigating with a stronger design (shared items, or an external conditioner known to overlap across strata), not a settled instrument-level bias finding.
 
 ## Per-run diagnostic
 
@@ -58,7 +58,7 @@ The flag is advisory only, like `po_violation` elsewhere in this module: the `|c
 
 ## Relationship to the existing DIF limitations
 
-The method ADR already lists related honest limits: within-unit non-independence (optimistic standard errors, hence a screening not a confirmatory framing), the untested proportional-odds assumption, the thin rest score with few raters, and rest-score contamination by panel-shared bias. This record adds the one that review found under-stated: the group is an item-level property and the conditioner is matched between nested item sets, so a real quality gap between strata can masquerade as DIF. It is the design-level companion to the conditioner-level contamination point already on record.
+The method ADR already lists related limits: within-unit non-independence (optimistic standard errors, hence a screening not a confirmatory framing), the untested proportional-odds assumption, the thin rest score with few raters, and rest-score contamination by panel-shared bias. This record adds the one that review found under-stated: the group is an item-level property and the conditioner is matched between nested item sets, so a real quality gap between strata can masquerade as DIF. It is the design-level companion to the conditioner-level contamination point already on record.
 
 ## References
 

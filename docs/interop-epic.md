@@ -1,6 +1,6 @@
 # Interop: auditing an Epic evaluation-instruments judge
 
-Epic's [`evaluation-instruments`](https://github.com/epic-open-source/evaluation-instruments) is a judge runner: it takes evaluation text and a rubric (PDSQI-9, the 5 C's, and others) and returns an LLM's scores per sample per criterion through `post.frame_from_evals`. metajudge is the auditor: it takes those scores -- never the underlying text, so no PHI enters the audit -- and reports whether the judge instrument is reliable and whether it functions differently across a stratum. The two compose directly.
+Epic's [`evaluation-instruments`](https://github.com/epic-open-source/evaluation-instruments) is a judge runner: it takes evaluation text and a rubric (PDSQI-9, the 5 C's, and others) and returns an LLM's scores per sample per criterion through `post.frame_from_evals`. metajudge is the auditor: it takes those scores (never the underlying text, so no PHI enters the audit) and reports whether the judge instrument is reliable and whether it functions differently across a stratum. The two compose directly.
 
 ## The seam
 
@@ -59,4 +59,4 @@ These numbers come from a synthetic 12-sample fixture and illustrate the seam an
 
 ## On real Epic data
 
-Epic ships example clinical inputs, not saved judge outputs, and the full instruments are PHI-bearing and access-controlled. To audit a real instrument, run Epic's judge to produce a `frame_from_evals` DataFrame per judge or per run on your own governed data, then pass those frames to `Ratings.from_eval_instruments` exactly as above. Nothing leaves your environment: the adapter is a local DataFrame transform. Pass a valid independent external quality conditioner to the DIF step for instrument-level interpretation; see the DIF ADR for caveats.
+Epic ships example clinical inputs, not saved judge outputs, and the full instruments are PHI-bearing and access-controlled. To audit a real instrument, run Epic's judge to produce a `frame_from_evals` DataFrame per judge or per run on your own governed data, then pass those frames to `Ratings.from_eval_instruments` exactly as above. Nothing leaves your environment: the adapter is a local DataFrame transform. Pass a valid independent external quality conditioner to the DIF step for instrument-level interpretation; see the [nested-strata confound ADR](decisions/2026-07-01-e07-dif-nested-strata-confound.md) for caveats.
