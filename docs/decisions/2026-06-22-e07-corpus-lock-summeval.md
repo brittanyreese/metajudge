@@ -38,8 +38,8 @@ License is MIT and the dataset is tutorial-sized, which fits the showcase goal.
 The data-inspection gate is closed. From model_annotations.aligned.jsonl (1,600 records parsed):
 
 - Structure: 1,600 summaries (100 documents by 16 systems), each with exactly 3 expert_annotations and 5 turker_annotations. Keys: decoded, expert_annotations, turker_annotations, id, model_id, references, filepath.
-- Granularity: all four dimensions (coherence, consistency, fluency, relevance) are integer 1 to 5, all five levels present. This clears the roughly 5-category threshold for ordinal logistic regression power, so the OLR path is sound.
-- Per-cell N: 4,800 expert and 8,000 crowd ratings per dimension. Sliced by system and rater type it is 300 expert and 500 crowd per dimension per system, all above the ETS 200 focal floor. Thick matching is advisable but the floor is not at risk.
+- Granularity: all four dimensions (coherence, consistency, fluency, relevance) are integers from 1 to 5, all five levels present. This clears the roughly 5-category threshold for ordinal logistic regression power, so the OLR path is sound.
+- Per-cell N: 4,800 expert and 8,000 crowd ratings per dimension. Sliced by system and rater type, it is 300 expert and 500 crowd per dimension per system, all above the ETS 200 focal floor. Thick matching is advisable but the floor is not at risk.
 - Dimensionality, empirical: the four expert-mean dimensions correlate only 0.32 to 0.66 (coherence-relevance highest at 0.66, most pairs 0.3 to 0.5). The matching total is multidimensional in fact, not just in principle, so the unidimensionality gate fails and within-dimension or bundle matching is required. This confirms the matching decision on real data.
 
 ## Open items

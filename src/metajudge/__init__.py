@@ -1,4 +1,10 @@
-"""metajudge: audit an LLM judge/rubric instrument."""
+"""metajudge: audit an LLM judge/rubric instrument before you trust its numbers.
+
+Two pillars: inter-rater reliability (Krippendorff's alpha, ICC(2,1)/(2,k)) and
+differential item functioning across output strata (ordinal logistic-regression DIF).
+``audit`` renders both into a one-screen report card; the pillar functions and
+:class:`~metajudge.data.Ratings` are usable standalone.
+"""
 
 from metajudge.data import Ratings
 from metajudge.demo import load_demo

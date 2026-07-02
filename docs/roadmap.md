@@ -6,7 +6,7 @@ The phase plan behind metajudge. Scope, non-goals, and the ship gate live in [SP
 
 Ship a pip-installable layer that audits an LLM judge instrument with a two-pillar report card (reliability plus DIF on one stratum) on real multi-rater judge outputs.
 
-Status: engine build complete and merged (PR #2). The ship tasks below are next.
+Status: shipped. `v0.1.0` is tagged (see [CHANGELOG.md](../CHANGELOG.md)); the sections below record what shipped for that tag, and post-tag work is tracked in the CHANGELOG's Unreleased section.
 
 ### Architecture
 
@@ -43,10 +43,10 @@ Every statistic is pinned to an external reference, not just internal consistenc
 
 Separate from the engine build, done as E07 is packaged for release:
 
-- Coverage gate plus badges; finalize the README. (this release)
-- `CHANGELOG.md` in Keep a Changelog format. (this release)
-- A worked example (`examples/`) that runs the audit on the demo corpus. (this release)
-- Tag `v0.1.0` on a clean `main`.
+- Coverage gate plus badges; finalize the README. (done, v0.1.0)
+- `CHANGELOG.md` in Keep a Changelog format. (done, v0.1.0)
+- A worked example (`examples/`) that runs the audit on the demo corpus. (done, v0.1.0)
+- Tag `v0.1.0` on a clean `main`. (done)
 - PyPI trusted publishing via OIDC (release workflow building with `uv build` on a `v*` tag): deferred until there is a reason to publish.
 
 ## Archived E04: the full instrument hypothesis

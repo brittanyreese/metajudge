@@ -8,13 +8,17 @@ Audit a scoring instrument, an LLM-as-judge or a human rater panel, before you t
 ![License](https://img.shields.io/badge/license-MIT-green)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
-An LLM judge or scoring rubric is a measurement instrument. Before you report its numbers, you want to know whether the raters agree, whether scores drift between output types, and how large any drift is. `metajudge` answers those questions with a one-screen screening report card. The statistics are rater-agnostic: it audits any multi-rater ordinal panel, whether the raters are LLM judges or human annotators. It audits the scoring instrument, not the model under test.
+An LLM judge or scoring rubric is a measurement instrument. Before you report its numbers, you want to know whether the raters agree, whether scores function differently between output types, and how large any difference is. `metajudge` answers those questions with a one-screen screening report card.
 
-It complements the ground-truth side of LLM evaluation (accuracy benchmarks, IRT-over-judges): those need a gold label per item, while `metajudge` works on *subjective* ordinal scores (coherence, helpfulness, quality) where no gold label exists and the question is whether the instrument is reliable and unbiased across output strata.
+The statistics are rater-agnostic: `metajudge` audits any multi-rater ordinal panel, whether the raters are LLM judges or human annotators. It audits the scoring instrument, not the model under test.
+
+It complements the ground-truth side of LLM evaluation (accuracy benchmarks, IRT-over-judges), which needs a gold label per item. `metajudge` instead works on *subjective* ordinal scores (coherence, helpfulness, quality), where no gold label exists and the question is whether the instrument is reliable and whether its scores function consistently across output strata.
+
+Every statistic is checked against an external reference implementation (see [Numerical correctness](#numerical-correctness)). [docs/PROVENANCE.md](https://github.com/brittanyreese/metajudge/blob/main/docs/PROVENANCE.md) records why the project exists and why the build took this shape.
 
 ## Try it on the demo
 
-The library ships a real corpus (SummEval expert coherence), so the example below runs end to end after install. Not yet on PyPI: install from source.
+The library ships a real corpus (SummEval expert coherence), so the example below runs end to end after [install](#install):
 
 ```bash
 pip install git+https://github.com/brittanyreese/metajudge@main
@@ -32,7 +36,7 @@ report = audit(ratings, focal="abstractive", reference="extractive")
 print(report.to_markdown())
 ```
 
-It prints the actual report card below (these are the live demo numbers, not a mock-up):
+It prints the report card below, with the live numbers exactly as the command produces them:
 
 ```
 # metajudge report card
@@ -55,11 +59,19 @@ It prints the actual report card below (these are the live demo numbers, not a m
 - Nonuniform DIF: chi2(1)=0.17, p=0.6773 [analytic, unclustered]
 ```
 
+## How to read the report card
+
+Reliability rests on two measures, Krippendorff's alpha and ICC. Both rise when raters converge: alpha is a chance-corrected agreement coefficient, ICC a variance-ratio reliability coefficient (the share of score variance that is rater-consistent signal). Krippendorff treats alpha at or above 0.80 as reliable and the 0.667 to 0.80 band as good only for tentative conclusions, so the demo's 0.554 sits below even that floor: these coherence scores are only marginally reliable, which is the kind of result this tool exists to surface. ICC(2,k) is higher than ICC(2,1) because averaging three raters cancels some of the per-rater noise. The reliability estimators assume a complete crossed design; on a matrix with missing cells `icc` refuses and names the estimator that does handle incomplete data, rather than returning a number it cannot defend. The reasoning is recorded as a dated ADR.
+
+DIF, differential item functioning, asks whether the panel scores abstractive outputs differently from extractive outputs once you condition on the rest-score proxy for overall quality. The "item" under audit is the rubric criterion rather than a shared test item, since each stratum scores different outputs. The engine is ordinal logistic regression in the Zumbo tradition (single-pass, not lordif's iterative purification), run as three nested proportional-odds models, so it reports a uniform-DIF test, a nonuniform-DIF test, and an effect size (the Nagelkerke pseudo-R-squared change) classified A, B, or C by the Jodoin-Gierl thresholds. The demo shows why the card prints both a p-value and an effect size: at n = 4800 the uniform-DIF test is significant (p = 0.0005), but the effect size is 0.002, class A, which is negligible. The signal is detectable; the magnitude is not.
+
+The matching variable is a leave-one-rater-out rest score across the three expert raters, which uses the same exchangeable-rater assumption as the reliability pillar. That rest score detects bias relative to the rater panel and understates bias the whole panel shares, so the card labels this path panel-relative DIF. For a stronger DIF analysis, pass an explicit external quality conditioner: `audit(ratings, focal=..., reference=..., conditioner=...)` accepts a sample-id to quality-score mapping. External-conditioner DIF supports instrument-level interpretation only when the conditioner is valid, independent, and appropriate for the quality construct being matched. Read DIF output as a screening audit, not a confirmatory significance claim. When a p-value lands near a decision threshold, `cluster_bootstrap_dif` runs the same engine with item-block resampling and returns a 95% cluster-robust interval alongside the unchanged point estimate.
+
 ## Audit your own judge
 
-To audit a real instrument, point metajudge at the output of an existing judge runner. `Ratings.from_eval_instruments` maps the per-judge score frames produced by Epic's [`evaluation-instruments`](https://github.com/epic-open-source/evaluation-instruments) (`frame_from_evals`) into the `Ratings` the audit consumes, with rater = judge, item = sample, score = one rubric criterion. It is a local DataFrame transform that adds no dependency. A runnable, no-PHI walkthrough is in [docs/interop-epic.md](https://github.com/brittanyreese/metajudge/blob/main/docs/interop-epic.md).
+To audit a real instrument, point metajudge at the output of an existing judge runner. `Ratings.from_eval_instruments` maps the per-judge score frames produced by Epic's [`evaluation-instruments`](https://github.com/epic-open-source/evaluation-instruments) (`frame_from_evals`) into the `Ratings` the audit consumes: rater is judge, item is sample, score is one rubric criterion. It is a local DataFrame transform that adds no dependency. A runnable, no-PHI walkthrough is in [docs/interop-epic.md](https://github.com/brittanyreese/metajudge/blob/main/docs/interop-epic.md).
 
-For a self-contained, end-to-end example that builds the judge panel itself, [`examples/audit_llm_judge.py`](https://github.com/brittanyreese/metajudge/blob/main/examples/audit_llm_judge.py) runs three LLM judges over 16 stratified summaries and prints the report card. `pip install "metajudge[examples] @ git+https://github.com/brittanyreese/metajudge@main"`, then `--mode live --provider gemini` calls Gemini models on a billed project (`GOOGLE_AI_API_KEY`), or `--mode live --provider openrouter` calls free-tier OpenRouter models (`OPENROUTER_API_KEY`, capacity not guaranteed). `--mode offline` is a seeded simulation that runs with no key or network.
+For a self-contained, end-to-end example that builds the judge panel itself, [`examples/audit_llm_judge.py`](https://github.com/brittanyreese/metajudge/blob/main/examples/audit_llm_judge.py) runs three LLM judges over 16 stratified summaries and prints the report card. Install with `pip install "metajudge[examples] @ git+https://github.com/brittanyreese/metajudge@main"`. Then pick a mode: `--mode live --provider gemini` calls Gemini models on a billed project (`GOOGLE_AI_API_KEY`); `--mode live --provider openrouter` calls free-tier OpenRouter models (`OPENROUTER_API_KEY`, capacity not guaranteed); `--mode offline` runs a seeded simulation with no key or network.
 
 This is what a real LLM panel looks like through the same card (a live Gemini run, committed as [`examples/sample_output_llm.txt`](https://github.com/brittanyreese/metajudge/blob/main/examples/sample_output_llm.txt); at 16 items it is a format demonstration, not a study):
 
@@ -101,18 +113,10 @@ Degenerate resamples (draws with no ordinal variation) are dropped; check `cb.ci
 
 One dependence axis remains unhandled: resampling item blocks preserves the cross-rater correlation within an item, but the same judge panel scores every item, and that cross-item within-rater dependence is not resampled. The intervals stay mildly optimistic on that axis; the principled fix is a mixed or GEE model, recorded as out of scope in the cluster-bootstrap ADR.
 
-## How to read the report card
+## Scope and limits
 
-Reliability, Krippendorff's alpha and ICC. Both measure how much the raters agree. Krippendorff's convention treats alpha at or above 0.667 as tentatively reliable and 0.80 as reliable, so the demo's 0.554 sits below that floor: these coherence scores are only marginally reliable, which is the kind of result this tool exists to surface. ICC(2,k) is higher than ICC(2,1) because averaging three raters cancels some of the per-rater noise. The reliability estimators assume a complete crossed design; on a matrix with missing cells `icc` refuses and names the estimator that does handle incomplete data, rather than returning a number it cannot defend. The reasoning is recorded as a dated ADR.
-
-DIF, differential item functioning. This asks whether abstractive outputs are scored differently from extractive outputs once you match on overall quality. The engine is ordinal logistic regression in the Zumbo tradition (single-pass, not lordif's iterative purification), run as three nested proportional-odds models, so it reports a uniform-DIF test, a nonuniform-DIF test, and an effect size (the Nagelkerke pseudo-R-squared change) classified A, B, or C by the Jodoin-Gierl thresholds. The demo shows why the card prints both a p-value and an effect size: at n = 4800 the uniform-DIF test is significant (p = 0.0005), but the effect size is 0.002, class A, which is negligible. The signal is detectable; the magnitude is not.
-
-The matching variable is a leave-one-rater-out rest score across the three expert raters, which uses the same exchangeable-rater assumption as the reliability pillar. That rest score detects bias relative to the rater panel and understates bias the whole panel shares, so the card labels this path panel-relative DIF. For a stronger DIF analysis, pass an explicit external quality conditioner: `audit(ratings, focal=..., reference=..., conditioner=...)` accepts a sample-id to quality-score mapping. External-conditioner DIF supports instrument-level interpretation only when the conditioner is valid, independent, and appropriate for the quality construct being matched. Read DIF output as a screening audit, not a confirmatory significance claim. When a p-value lands near a decision threshold, `cluster_bootstrap_dif` runs the same engine with item-block resampling and returns a 95% cluster-robust interval alongside the unchanged point estimate.
-
-## Scope, stated honestly
-
-- It covers two pillars: reliability (Krippendorff's alpha with a bootstrap CI, and ICC(2,1)/(2,k)) and DIF across one stratum. It is not a full validity or variance-decomposition framework.
-- DIF is one stratum at a time. The analytic likelihood-ratio test pools observations as independent; in a crossed rater-by-item design that is anti-conservative. Use `cluster_bootstrap_dif` to get item-block-resampled confidence intervals alongside the analytic point estimate. The tool is a screen that flags instruments worth a closer look, not a final verdict.
+- It covers two pillars: reliability (Krippendorff's alpha with a bootstrap CI, and ICC(2,1)/(2,k)) and DIF for one focal-versus-reference contrast at a time. It is not a full validity or variance-decomposition framework.
+- The analytic likelihood-ratio test is anti-conservative in the crossed rater-by-item design; `cluster_bootstrap_dif` (above) adds item-block-resampled confidence intervals alongside the analytic point estimate. The tool is a screen: it flags instruments worth a closer look and leaves the verdict to a fuller analysis.
 - The demo numbers illustrate the report-card format on a real corpus. They are not a published claim about SummEval.
 
 ## Install
@@ -160,3 +164,5 @@ MIT. See [LICENSE](https://github.com/brittanyreese/metajudge/blob/main/LICENSE)
 ## Decisions and provenance
 
 Every choice that changes the build is a dated, cited ADR. The curated index of what was decided and why is [docs/DECISIONS.md](https://github.com/brittanyreese/metajudge/blob/main/docs/DECISIONS.md): the ordinal-DIF engine, the ICC refusal on incomplete data, and the SummEval corpus lock. The why-this-build context is in [docs/PROVENANCE.md](https://github.com/brittanyreese/metajudge/blob/main/docs/PROVENANCE.md), and the full records live in [docs/decisions/](https://github.com/brittanyreese/metajudge/tree/main/docs/decisions/).
+
+The project is developed with AI assistance; [CONTRIBUTING](https://github.com/brittanyreese/metajudge/blob/main/CONTRIBUTING.md#ai-assistance) describes the gates every change passes.
