@@ -59,6 +59,9 @@ def _card(*, converged: bool, conditioner_source: str = "rest_score") -> ReportC
         focal_level="foc",
         converged=converged,
         po_violation=False,
+        conditioner_group_corr=0.0,
+        conditioner_common_support=1.0,
+        conditioner_overlap_weak=False,
     )
     return ReportCard(alpha=alpha, icc=ic, dif=dif)
 
@@ -89,6 +92,9 @@ def _card_with_alpha(alpha: AlphaResult) -> ReportCard:
         focal_level="foc",
         converged=True,
         po_violation=False,
+        conditioner_group_corr=0.0,
+        conditioner_common_support=1.0,
+        conditioner_overlap_weak=False,
     )
     return ReportCard(alpha=alpha, icc=icc_result, dif=dif)
 
@@ -225,6 +231,37 @@ def test_markdown_warns_analytic_dif_pvalues_are_anti_conservative() -> None:
     assert "anti-conservative" in md
     assert "cluster_bootstrap_dif" in md
     assert md.index("anti-conservative") < md.index("Uniform DIF")
+
+
+def test_markdown_weak_overlap_shows_residual_impurity_warning_before_effect_size() -> None:
+    # When the conditioner-group overlap is weak, the blanket nested-strata caveat is
+    # replaced by a run-specific warning naming the residual-impurity regime and the
+    # actual correlation / common-support numbers, still above the DIF statistics.
+    from dataclasses import replace
+
+    card = _card(converged=True)
+    weak = replace(
+        card,
+        dif=replace(
+            card.dif,
+            conditioner_overlap_weak=True,
+            conditioner_group_corr=0.82,
+            conditioner_common_support=0.35,
+        ),
+    )
+    md = weak.to_markdown()
+    assert "residual-impurity regime" in md
+    assert "0.820" in md
+    assert "0.350" in md
+    assert md.index("residual-impurity regime") < md.index("Effect size")
+
+
+def test_markdown_strong_overlap_keeps_blanket_nested_strata_caveat() -> None:
+    # Good overlap: keep the standing blanket caveat and never show the run-specific
+    # residual-impurity warning.
+    md = _card(converged=True).to_markdown()
+    assert "strata nest items" in md
+    assert "residual-impurity regime" not in md
 
 
 def test_audit_default_has_no_bootstrap() -> None:
