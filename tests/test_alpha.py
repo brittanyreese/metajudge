@@ -125,6 +125,15 @@ def test_default_level_is_ordinal() -> None:
     assert res.level == "ordinal"
 
 
+def test_bogus_level_raises_clear_value_error() -> None:
+    # level is a str passthrough to the krippendorff package; a typo used to surface as an
+    # opaque TypeError from inside that package instead of a clear metajudge error.
+    matrix = [[1, 2], [2, 1]]
+    r = _ratings_from_matrix(matrix)
+    with pytest.raises(ValueError, match=r"nominal.*ordinal.*interval.*ratio"):
+        krippendorff_alpha(r, level="bogus", n_bootstrap=0)
+
+
 def test_alpha_ci_is_nan_when_no_resamples_survive() -> None:
     # n_bootstrap=0 → boot is empty → CI should be NaN (not point-collapsed).
     matrix = [[1, 2], [2, 1]]

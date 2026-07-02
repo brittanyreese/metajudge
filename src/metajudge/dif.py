@@ -7,6 +7,12 @@ chi-square tests for total (2 df), uniform (1 df), and nonuniform (1 df) DIF; ef
 size is the Nagelkerke pseudo-R-squared change classified on the Jodoin & Gierl (2001)
 thresholds. See docs/decisions/2026-06-22-e07-dif-ordinal-logistic-regression.md.
 
+This inverts the classical DIF design: group here is a property of the item (each item
+maps to exactly one stratum), not of an examinee answering a shared item, so the
+conditioner is matched between two disjoint item sets rather than within items both
+groups answer. See docs/decisions/2026-07-01-e07-dif-nested-strata-confound.md for the
+resulting confound and how the engine and report card handle it.
+
 A DIF analysis needs a quality conditioner independent of the studied response. The
 default conditioner is a leave-one-rater-out rest score; callers may pass an explicit
 external conditioner instead. With a single rater and no external conditioner there is
@@ -215,6 +221,12 @@ def _classify_jodoin_gierl(r2_delta: float) -> str:
     Jodoin & Gierl (2001): negligible (A) below 0.035, moderate (B) in
     ``[0.035, 0.070)``, large (C) at or above 0.070. These are an R-squared magnitude
     rule, not the ETS Mantel-Haenszel delta classification.
+
+    Jodoin & Gierl calibrated these thresholds on the two-category (dichotomous)
+    logistic R-squared change; applying them to the ordinal proportional-odds
+    Nagelkerke change here follows lordif convention (Choi, Gibbons & Crane, 2011)
+    rather than a direct validation of the ordinal case. See
+    docs/decisions/2026-06-22-e07-dif-ordinal-logistic-regression.md.
 
     Returns ``"?"`` when ``r2_delta`` is NaN (signals an optimization failure upstream).
     """

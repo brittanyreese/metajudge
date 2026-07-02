@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, cast
+from typing import Literal
 
 import krippendorff as kd  # type: ignore[import-untyped]
 import numpy as np
@@ -13,7 +13,19 @@ from scipy.stats import f as _f_dist  # type: ignore[import-untyped]
 from metajudge._constants import MIN_EFFECTIVE
 from metajudge.data import Ratings
 
-_LevelOfMeasurement = Literal["nominal", "ordinal", "interval", "ratio"]
+LevelOfMeasurement = Literal["nominal", "ordinal", "interval", "ratio"]
+_LEVELS_OF_MEASUREMENT: tuple[LevelOfMeasurement, ...] = (
+    "nominal",
+    "ordinal",
+    "interval",
+    "ratio",
+)
+
+
+def _validate_level(level: str) -> LevelOfMeasurement:
+    if level not in _LEVELS_OF_MEASUREMENT:
+        raise ValueError(f"level must be one of {_LEVELS_OF_MEASUREMENT}, got {level!r}")
+    return level
 
 
 @dataclass(frozen=True)
@@ -50,7 +62,7 @@ class AlphaResult:
 def krippendorff_alpha(
     ratings: Ratings,
     *,
-    level: str = "ordinal",
+    level: LevelOfMeasurement | str = "ordinal",
     n_bootstrap: int = 1000,
     seed: int = 0,
 ) -> AlphaResult:
@@ -70,7 +82,7 @@ def krippendorff_alpha(
     about the panel itself.
     """
     matrix = ratings.coder_unit_matrix()
-    lom = cast(_LevelOfMeasurement, level)
+    lom = _validate_level(level)
     point = float(kd.alpha(reliability_data=matrix, level_of_measurement=lom))  # type: ignore[reportUnknownMemberType]
     rng = np.random.default_rng(seed)
     n_units = matrix.shape[1]

@@ -38,10 +38,14 @@ Output:
 # metajudge report card
 
 ## Reliability
+> Note: high agreement (alpha, ICC) is not evidence the rubric measures the intended construct. It shows raters apply the scale consistently, not that the scale captures the quality you care about.
+
 - Krippendorff's alpha (ordinal): 0.723 [95% CI 0.418, 0.739]
 - ICC(2,1): 0.711 [95% CI 0.418, 0.896]; ICC(2,k): 0.880 [95% CI 0.683, 0.963] (12 targets x 3 raters)
 
 ## DIF (panel-relative, rest-score conditioner)
+> WARNING: residual-impurity regime. The conditioner is strongly (but not perfectly) correlated with the group (correlation 0.872, common support 0.167), so the effect size below may absorb a real between-strata quality gap as apparent DIF instead of screening it out.
+
 > Note: the rest-score conditioner cannot see bias shared across the entire rater panel, so this is panel-relative DIF, not an instrument-level fairness clearance. Pass a valid independent external quality conditioner for a stronger instrument-level analysis.
 
 - abstractive vs extractive (conditioner: rest_score, n=36)
@@ -51,7 +55,7 @@ Output:
 - Nonuniform DIF: chi2(1)=0.27, p=0.6060 [analytic, unclustered]
 ```
 
-These numbers come from a synthetic fixture and illustrate the seam and the report-card format, not a finding about any clinical instrument.
+These numbers come from a synthetic 12-sample fixture and illustrate the seam and the report-card format, not a finding about any clinical instrument. The fixture also happens to land in the residual-impurity regime (the two strata's conditioner values barely overlap at this size), so the class-C effect size above should be read through that warning, not as a clean DIF verdict.
 
 ## On real Epic data
 
