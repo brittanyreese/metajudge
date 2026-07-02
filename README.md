@@ -147,6 +147,8 @@ When a reference value and a literal disagree, the reference wins and the litera
 
 Two test suites enforce this at different depths. Every push and pull request runs the fast suite (oracle pins, engine tests, quick simulation guards). A weekly [Rigor workflow](https://github.com/brittanyreese/metajudge/blob/main/.github/workflows/rigor.yml), also required before any release, runs the full-precision operating-characteristics tests (Type-I control, power, bootstrap coverage at 400 replications per cell) and refits the R `MASS::polr` oracle live.
 
+The measured operating characteristics themselves (Type-I error, power curves, proportional-odds robustness, and the calibration behind the conditioner-overlap warning) are reported in [docs/sim-operating-characteristics.md](https://github.com/brittanyreese/metajudge/blob/main/docs/sim-operating-characteristics.md), with seeds and raw draws committed so every number regenerates.
+
 ## Citing
 
 If you use metajudge in published work, cite it via the [`CITATION.cff`](https://github.com/brittanyreese/metajudge/blob/main/CITATION.cff) file (GitHub's "Cite this repository" generates APA and BibTeX from it). The methods the tool implements are credited to their original authors in [docs/REFERENCES.md](https://github.com/brittanyreese/metajudge/blob/main/docs/REFERENCES.md).

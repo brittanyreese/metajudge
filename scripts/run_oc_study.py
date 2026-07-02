@@ -21,7 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from sim.oc_study import run_block, study_blocks  # noqa: E402
+from sim.oc_study import run_block, study_blocks
 
 
 def main() -> None:

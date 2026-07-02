@@ -159,12 +159,12 @@ class ReportCard:
         # absorb a real between-strata quality gap as apparent DIF rather than screen it out.
         if d.conditioner_overlap_weak:
             structural_note = [
-                "> WARNING: residual-impurity regime. The conditioner is strongly (but not "
-                "perfectly) correlated with the group (correlation "
-                f"{d.conditioner_group_corr:.3f}, common support "
-                f"{d.conditioner_common_support:.3f}), so the effect size below may absorb "
-                "a real between-strata quality gap as apparent DIF instead of screening it "
-                "out.",
+                "> WARNING: residual-impurity regime. The conditioner correlates with the "
+                f"group (correlation {d.conditioner_group_corr:.3f}, common support "
+                f"{d.conditioner_common_support:.3f}) beyond the calibrated safe band "
+                "(|corr| < 0.2), where the simulation study measured a materially elevated "
+                "false B/C rate under no true DIF. The effect size below may absorb a real "
+                "between-strata quality gap as apparent DIF instead of screening it out.",
                 "",
             ]
         else:
