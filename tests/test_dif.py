@@ -287,6 +287,22 @@ def test_matches_pinned_oracle_with_external_conditioner() -> None:
     assert res.dif_class == "C"
 
 
+def test_conditioner_group_corr_matches_corrcoef() -> None:
+    ratings, conditioner = _frozen()
+    res = logistic_dif(ratings, focal="foc", reference="ref", conditioner=conditioner)
+    # Independently rebuild the per-row conditioner and group vectors the engine feeds
+    # into _dif_stats: one row per rating, first half of items are "ref", second half "foc".
+    cond_rows: NDArray[np.float64] = np.repeat(  # type: ignore[reportUnknownMemberType]
+        np.asarray(_QUALITY, dtype=float), _N_RATERS
+    )
+    group: NDArray[np.float64] = np.repeat(  # type: ignore[reportUnknownMemberType]
+        np.array([0.0] * (_N_ITEMS // 2) + [1.0] * (_N_ITEMS // 2)), _N_RATERS
+    )
+    standardized_cond = (cond_rows - cond_rows.mean()) / cond_rows.std(ddof=0)
+    expected = float(np.corrcoef(standardized_cond, group)[0, 1])
+    assert res.conditioner_group_corr == pytest.approx(expected, abs=1e-9)
+
+
 def test_engine_matches_statsmodels_logit_in_binary_limit() -> None:
     """Two-category proportional odds is ordinary logistic regression.
 
@@ -508,6 +524,7 @@ def test_cluster_bootstrap_drops_nonconverged_refits(monkeypatch: pytest.MonkeyP
                 n_obs=_N_ITEMS * _N_RATERS,
                 converged=True,
                 po_violation=False,
+                conditioner_group_corr=0.0,
             )
         bootstrap_calls += 1
         if bootstrap_calls <= 3:
@@ -520,6 +537,7 @@ def test_cluster_bootstrap_drops_nonconverged_refits(monkeypatch: pytest.MonkeyP
                 n_obs=_N_ITEMS * _N_RATERS,
                 converged=bootstrap_calls != 1,
                 po_violation=False,
+                conditioner_group_corr=0.0,
             )
         # Jackknife phase (leave-one-cluster-out): converged constants; equal values give
         # zero acceleration, and the boundary check drives BCa to the percentile fallback.
@@ -531,6 +549,7 @@ def test_cluster_bootstrap_drops_nonconverged_refits(monkeypatch: pytest.MonkeyP
             n_obs=_N_ITEMS * _N_RATERS,
             converged=True,
             po_violation=False,
+            conditioner_group_corr=0.0,
         )
 
     monkeypatch.setattr(dif_module, "_dif_stats", fake_dif_stats)
