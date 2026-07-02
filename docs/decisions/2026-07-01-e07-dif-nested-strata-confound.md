@@ -1,7 +1,7 @@
 # E07 DIF: nested-strata conditioner/group confound is a stated scope limit, not a bug
 
 Status: Accepted for E07. Date: 2026-07-01.
-Extends the DIF method record (`2026-06-22-e07-dif-ordinal-logistic-regression.md`) and the matching record (`2026-06-22-e07-dif-method-and-matching.md`). It does not change the estimator; it names, first-class, a structural limit of the "DIF across output strata" operationalization and records how the report card and the engine handle it.
+Extends the DIF method record (`2026-06-22-e07-dif-ordinal-logistic-regression.md`), including its "conditioner and its data precondition" section, which is the matching record. It does not change the estimator; it names, first-class, a structural limit of the "DIF across output strata" operationalization and records how the report card and the engine handle it.
 
 ## Context
 

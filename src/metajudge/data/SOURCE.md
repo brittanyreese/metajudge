@@ -51,4 +51,6 @@ Consequences:
 - Krippendorff alpha: unaffected; it measures within-item agreement regardless of slot identity.
 - ICC(2,1) and ICC(2,k): valid under the slot-stability assumption. Treat ICC estimates as
   conditional on this assumption.
-- DIF (Mantel-Haenszel): uses per-item mean score; rater identity is not used.
+- DIF (ordinal logistic regression): the default leave-one-rater-out rest score conditioner
+  is computed per (item, rater) row from the other raters' scores for that item, so slot
+  identity affects which score is left out but not the item-level quality signal.
