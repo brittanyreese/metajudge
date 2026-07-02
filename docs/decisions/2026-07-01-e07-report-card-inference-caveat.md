@@ -29,7 +29,7 @@ The rest-score / external / non-convergence / proportional-odds warnings are unc
 - The card never presents significance it cannot defend. Fast mode says significance was not clustering-assessed; robust mode reports the bootstrap flag. Either way the anti-conservative analytic p-values are demoted and tagged, not headlined.
 - The caveat now rides the numbers (inline tag + flag line) instead of a standing prose note, so it does not decay into wallpaper the way an always-present banner would.
 - `audit()` default runtime is unchanged; the ~1000-refit cost is opt-in via `robust=True`, consistent with the prior ADR's "screening robustness check, not a confirmatory test."
-- The robust flag rests on the item-cluster bootstrap, so it inherits that layer's honest limit: it addresses within-item rater dependence, not cross-item within-rater dependence. The fully correct fix (mixed-effects / GEE DIF) remains E04 / full-instrument scope.
+- The robust flag rests on the item-cluster bootstrap, so it inherits that layer's limit: it addresses within-item rater dependence, not cross-item within-rater dependence. The fully correct fix (mixed-effects / GEE DIF) remains E04 / full-instrument scope.
 
 ## Alternatives considered
 

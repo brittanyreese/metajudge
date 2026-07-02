@@ -2,7 +2,7 @@
 
 The methods metajudge implements are credited to their original authors here.
 Every entry is carried verbatim from the decision record where the method was
-adopted; the per-method rationale and any honest caveats about applying a
+adopted; the per-method rationale and any caveats about applying a
 method outside its original validation live in [decisions/](decisions/). This
 file is the consolidated bibliography so the credits travel with the package
 rather than sitting only inside individual ADRs.

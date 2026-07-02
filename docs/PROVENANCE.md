@@ -14,4 +14,4 @@ This file records why metajudge is built the way it is: the problem framing, the
 - [DECISIONS.md](DECISIONS.md): the curated index of every build-changing ADR (corpus lock, ordinal-DIF engine, ICC refusal on incomplete data), each linked to its full record in [decisions/](decisions/).
 - [REFERENCES.md](REFERENCES.md): the consolidated bibliography for every method the library implements.
 
-The literature review behind the two-pillar scope is distilled into those decision records and bibliography: each method choice traces to the sources it rests on, and the honest limits of applying a method outside its original validation are stated in the relevant ADR.
+The literature review behind the two-pillar scope is distilled into those decision records and bibliography: each method choice traces to the sources it rests on, and the limits of applying a method outside its original validation are stated in the relevant ADR.

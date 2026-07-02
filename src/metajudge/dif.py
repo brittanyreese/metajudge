@@ -771,7 +771,7 @@ def _bca_bounds(
 # With fewer items per group the item-cluster bootstrap draws from too small a space of
 # distinct resample compositions for the percentile CI to be stable, even if n_effective
 # clears the convergence floor. The number of distinct resamples (multisets) of n items is
-# C(2n-1, n): only 126 at n=5 and 35 at n=4 — sparse enough that the 2.5/97.5 percentiles
+# C(2n-1, n): only 126 at n=5 and 35 at n=4, sparse enough that the 2.5/97.5 percentiles
 # jump between a handful of discrete values. Below 5 the CI should be treated as unstable.
 _MIN_CLUSTER_SIZE = 5
 

@@ -14,7 +14,7 @@ The statistics are rater-agnostic: `metajudge` audits any multi-rater ordinal pa
 
 It complements the ground-truth side of LLM evaluation (accuracy benchmarks, IRT-over-judges), which needs a gold label per item. `metajudge` instead works on *subjective* ordinal scores (coherence, helpfulness, quality), where no gold label exists and the question is whether the instrument is reliable and whether its scores function consistently across output strata.
 
-Every statistic is tested against an external reference implementation, not internal consistency alone (see [Numerical correctness](#numerical-correctness)). [docs/PROVENANCE.md](https://github.com/brittanyreese/metajudge/blob/main/docs/PROVENANCE.md) records why the project exists and why the build took this shape.
+Every statistic is checked against an external reference implementation (see [Numerical correctness](#numerical-correctness)). [docs/PROVENANCE.md](https://github.com/brittanyreese/metajudge/blob/main/docs/PROVENANCE.md) records why the project exists and why the build took this shape.
 
 ## Try it on the demo
 
@@ -36,7 +36,7 @@ report = audit(ratings, focal="abstractive", reference="extractive")
 print(report.to_markdown())
 ```
 
-It prints the actual report card below (these are the live demo numbers, not a mock-up):
+It prints the report card below, with the live numbers exactly as the command produces them:
 
 ```
 # metajudge report card
@@ -116,7 +116,7 @@ One dependence axis remains unhandled: resampling item blocks preserves the cros
 ## Scope and limits
 
 - It covers two pillars: reliability (Krippendorff's alpha with a bootstrap CI, and ICC(2,1)/(2,k)) and DIF for one focal-versus-reference contrast at a time. It is not a full validity or variance-decomposition framework.
-- The analytic likelihood-ratio test is anti-conservative in the crossed rater-by-item design; `cluster_bootstrap_dif` (above) adds item-block-resampled confidence intervals alongside the analytic point estimate. The tool is a screen that flags instruments worth a closer look, not a final verdict.
+- The analytic likelihood-ratio test is anti-conservative in the crossed rater-by-item design; `cluster_bootstrap_dif` (above) adds item-block-resampled confidence intervals alongside the analytic point estimate. The tool is a screen: it flags instruments worth a closer look and leaves the verdict to a fuller analysis.
 - The demo numbers illustrate the report-card format on a real corpus. They are not a published claim about SummEval.
 
 ## Install
