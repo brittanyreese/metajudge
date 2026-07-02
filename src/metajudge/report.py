@@ -152,15 +152,30 @@ class ReportCard:
         # the single linear match leaves residual confounding (DIF impurity) this screen does
         # not remove; at near-perfect confounding the engine refuses outright. See
         # docs/decisions/2026-07-01-e07-dif-nested-strata-confound.md.
-        notes = [
-            "> Note: strata nest items (each item is in one stratum), so this matches quality "
-            "between nested item sets, not within shared items. If the strata differ in "
-            "quality, the conditioner correlates with the group and residual confounding "
-            "(DIF impurity) remains; read the effect size as screening evidence, not a "
-            "confound-free fairness verdict.",
-            "",
-            *notes,
-        ]
+        # When this run's conditioner-group overlap is weak (conditioner_overlap_weak), the
+        # blanket caveat above is replaced by a run-specific one: it names the actual
+        # correlation and common-support numbers, because at that overlap the effect size can
+        # absorb a real between-strata quality gap as apparent DIF rather than screen it out.
+        if d.conditioner_overlap_weak:
+            structural_note = [
+                "> WARNING: residual-impurity regime. The conditioner is strongly (but not "
+                "perfectly) correlated with the group (correlation "
+                f"{d.conditioner_group_corr:.3f}, common support "
+                f"{d.conditioner_common_support:.3f}), so the effect size below may absorb "
+                "a real between-strata quality gap as apparent DIF instead of screening it "
+                "out.",
+                "",
+            ]
+        else:
+            structural_note = [
+                "> Note: strata nest items (each item is in one stratum), so this matches "
+                "quality between nested item sets, not within shared items. If the strata "
+                "differ in quality, the conditioner correlates with the group and residual "
+                "confounding (DIF impurity) remains; read the effect size as screening "
+                "evidence, not a confound-free fairness verdict.",
+                "",
+            ]
+        notes = [*structural_note, *notes]
         # The convergence warning, the proportional-odds warning, and the panel-relative
         # note all sit ABOVE the statistics so a reader who excerpts the headline numbers
         # cannot drop them.

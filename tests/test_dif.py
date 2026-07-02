@@ -29,6 +29,7 @@ from metajudge.dif import (
     DifSweep,
     _bca_bounds,  # pyright: ignore[reportPrivateUsage]
     _classify_jodoin_gierl,  # pyright: ignore[reportPrivateUsage]
+    _common_support,  # pyright: ignore[reportPrivateUsage]
     _DifStats,  # pyright: ignore[reportPrivateUsage]
     _fit_proportional_odds,  # pyright: ignore[reportPrivateUsage]
     _lr_chi2,  # pyright: ignore[reportPrivateUsage]
@@ -287,6 +288,22 @@ def test_matches_pinned_oracle_with_external_conditioner() -> None:
     assert res.dif_class == "C"
 
 
+def test_conditioner_group_corr_matches_corrcoef() -> None:
+    ratings, conditioner = _frozen()
+    res = logistic_dif(ratings, focal="foc", reference="ref", conditioner=conditioner)
+    # Independently rebuild the per-row conditioner and group vectors the engine feeds
+    # into _dif_stats: one row per rating, first half of items are "ref", second half "foc".
+    cond_rows: NDArray[np.float64] = np.repeat(  # type: ignore[reportUnknownMemberType]
+        np.asarray(_QUALITY, dtype=float), _N_RATERS
+    )
+    group: NDArray[np.float64] = np.repeat(  # type: ignore[reportUnknownMemberType]
+        np.array([0.0] * (_N_ITEMS // 2) + [1.0] * (_N_ITEMS // 2)), _N_RATERS
+    )
+    standardized_cond = (cond_rows - cond_rows.mean()) / cond_rows.std(ddof=0)
+    expected = float(np.corrcoef(standardized_cond, group)[0, 1])
+    assert res.conditioner_group_corr == pytest.approx(expected, abs=1e-9)
+
+
 def test_engine_matches_statsmodels_logit_in_binary_limit() -> None:
     """Two-category proportional odds is ordinary logistic regression.
 
@@ -433,6 +450,77 @@ def test_collinear_conditioner_raises() -> None:
         logistic_dif(_make(ref, foc), focal="foc", reference="ref")
 
 
+def _corr_band_ratings(
+    ref_cond: list[float], foc_cond: list[float]
+) -> tuple[Ratings, dict[Hashable, float]]:
+    """5 reference + 5 focal items with varied (multi-category) scores and the given
+    per-item external conditioner values, so ``conditioner_group_corr`` is driven purely
+    by ``ref_cond``/``foc_cond`` (5 items, 3 raters each, matching ``_partial_overlap_ratings``)."""
+    ref = [[1, 2, 2], [3, 3, 4], [5, 4, 5], [2, 1, 2], [4, 5, 4]]
+    foc = [[3, 2, 3], [4, 3, 4], [2, 1, 2], [5, 4, 5], [1, 2, 1]]
+    ratings = _make(ref, foc)
+    conditioner: dict[Hashable, float] = {
+        **{f"ref{i}": v for i, v in enumerate(ref_cond)},
+        **{f"foc{i}": v for i, v in enumerate(foc_cond)},
+    }
+    return ratings, conditioner
+
+
+def _expected_corr(ref_cond: list[float], foc_cond: list[float], n_raters: int = 3) -> float:
+    """Independently rebuild the per-row conditioner/group vectors and correlate them."""
+    ref_rows: NDArray[np.float64] = np.repeat(np.array(ref_cond, dtype=float), n_raters)  # type: ignore[reportUnknownMemberType]
+    foc_rows: NDArray[np.float64] = np.repeat(np.array(foc_cond, dtype=float), n_raters)  # type: ignore[reportUnknownMemberType]
+    cond: NDArray[np.float64] = np.concatenate([ref_rows, foc_rows])  # type: ignore[reportUnknownMemberType]
+    group: NDArray[np.float64] = np.concatenate(  # type: ignore[reportUnknownMemberType]
+        [np.zeros_like(ref_rows), np.ones_like(foc_rows)]
+    )
+    z = (cond - cond.mean()) / cond.std(ddof=0)
+    return float(np.corrcoef(z, group)[0, 1])  # type: ignore[reportUnknownMemberType]
+
+
+def test_conditioner_overlap_weak_true_in_weak_band() -> None:
+    # Focal conditioner values sit mostly above reference, with overlap at 5.
+    ref_cond, foc_cond = [1.0, 2.0, 3.0, 4.0, 5.0], [5.0, 6.0, 7.0, 8.0, 9.0]
+    expected = _expected_corr(ref_cond, foc_cond)
+    assert 0.7 <= expected < 0.999
+    ratings, conditioner = _corr_band_ratings(ref_cond, foc_cond)
+    res = logistic_dif(ratings, focal="foc", reference="ref", conditioner=conditioner)
+    assert res.conditioner_group_corr == pytest.approx(expected, abs=1e-9)
+    assert res.conditioner_overlap_weak is True
+
+
+def test_conditioner_overlap_weak_false_below_band() -> None:
+    # Heavily overlapping conditioner distributions across groups.
+    ref_cond, foc_cond = [1.0, 2.0, 3.0, 4.0, 5.0], [2.0, 3.0, 4.0, 5.0, 6.0]
+    expected = _expected_corr(ref_cond, foc_cond)
+    assert expected < 0.7
+    ratings, conditioner = _corr_band_ratings(ref_cond, foc_cond)
+    res = logistic_dif(ratings, focal="foc", reference="ref", conditioner=conditioner)
+    assert res.conditioner_group_corr == pytest.approx(expected, abs=1e-9)
+    assert res.conditioner_overlap_weak is False
+
+
+def test_conditioner_overlap_weak_true_near_999_boundary_not_refused() -> None:
+    # Strong separation but still identifiable (|corr| < 0.999): the engine must not
+    # raise, and the advisory flag must still fire since 0.999 is an inclusive bound.
+    ref_cond, foc_cond = [0.0, 1.0, 2.0, 3.0, 4.0], [40.0, 41.0, 42.0, 43.0, 44.0]
+    expected = _expected_corr(ref_cond, foc_cond)
+    assert 0.7 <= expected < 0.999
+    ratings, conditioner = _corr_band_ratings(ref_cond, foc_cond)
+    res = logistic_dif(ratings, focal="foc", reference="ref", conditioner=conditioner)
+    assert res.conditioner_group_corr == pytest.approx(expected, abs=1e-9)
+    assert res.conditioner_overlap_weak is True
+
+
+def test_conditioner_overlap_weak_raises_above_999_threshold() -> None:
+    # Mirrors test_collinear_conditioner_raises: |corr| > 0.999 is still refused by the
+    # existing identifiability guard, unchanged by this flag.
+    ref = [[5, 5, 5], [5, 5, 5], [5, 5, 5]]
+    foc = [[1, 1, 1], [1, 1, 1], [1, 1, 1]]
+    with pytest.raises(ValueError, match="collinear"):
+        logistic_dif(_make(ref, foc), focal="foc", reference="ref")
+
+
 def test_constant_conditioner_raises() -> None:
     ratings, conditioner = _frozen()
     flat: dict[Hashable, float] = {item: 1.0 for item in conditioner}
@@ -508,6 +596,7 @@ def test_cluster_bootstrap_drops_nonconverged_refits(monkeypatch: pytest.MonkeyP
                 n_obs=_N_ITEMS * _N_RATERS,
                 converged=True,
                 po_violation=False,
+                conditioner_group_corr=0.0,
             )
         bootstrap_calls += 1
         if bootstrap_calls <= 3:
@@ -520,6 +609,7 @@ def test_cluster_bootstrap_drops_nonconverged_refits(monkeypatch: pytest.MonkeyP
                 n_obs=_N_ITEMS * _N_RATERS,
                 converged=bootstrap_calls != 1,
                 po_violation=False,
+                conditioner_group_corr=0.0,
             )
         # Jackknife phase (leave-one-cluster-out): converged constants; equal values give
         # zero acceleration, and the boundary check drives BCa to the percentile fallback.
@@ -531,6 +621,7 @@ def test_cluster_bootstrap_drops_nonconverged_refits(monkeypatch: pytest.MonkeyP
             n_obs=_N_ITEMS * _N_RATERS,
             converged=True,
             po_violation=False,
+            conditioner_group_corr=0.0,
         )
 
     monkeypatch.setattr(dif_module, "_dif_stats", fake_dif_stats)
@@ -986,3 +1077,121 @@ def test_cluster_bootstrap_forwards_po_alpha(monkeypatch: pytest.MonkeyPatch) ->
     )
     assert tripped.base.po_violation is True
     assert clear.base.po_violation is False
+
+
+# --- conditioner_common_support: item-level overlap diagnostic ---
+#
+# Definition: with F = focal per-item conditioner values and R = reference per-item
+# conditioner values, [lo, hi] = [max(min(F), min(R)), min(max(F), max(R))]; support is
+# the fraction of values (across both F and R) landing inside [lo, hi]. Disjoint ranges
+# (lo > hi) give 0.0; identical ranges give 1.0.
+
+
+def test_common_support_helper_partial_overlap_hand_computed() -> None:
+    # F = [3,4,5,6,7], R = [1,2,3,4,5]. Overlap [lo,hi] = [max(3,1), min(7,5)] = [3,5].
+    # F in range: 3,4,5 (3 values). R in range: 3,4,5 (3 values). (3+3)/(5+5) = 0.6.
+    focal_vals: NDArray[np.float64] = np.array([3.0, 4.0, 5.0, 6.0, 7.0])
+    reference_vals: NDArray[np.float64] = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+    assert _common_support(focal_vals, reference_vals) == pytest.approx(0.6, abs=1e-12)
+
+
+def test_common_support_helper_disjoint_is_zero() -> None:
+    # F = [10..14], R = [1..5]: lo = max(10,1) = 10, hi = min(14,5) = 5. lo > hi -> 0.0.
+    focal_vals: NDArray[np.float64] = np.array([10.0, 11.0, 12.0, 13.0, 14.0])
+    reference_vals: NDArray[np.float64] = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+    assert _common_support(focal_vals, reference_vals) == 0.0
+
+
+def test_common_support_helper_identical_range_is_one() -> None:
+    # F == R -> every value falls inside [lo, hi] = [min, max] -> 1.0.
+    focal_vals: NDArray[np.float64] = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+    reference_vals: NDArray[np.float64] = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+    assert _common_support(focal_vals, reference_vals) == pytest.approx(1.0, abs=1e-12)
+
+
+def test_common_support_helper_empty_side_is_nan() -> None:
+    empty: NDArray[np.float64] = np.array([], dtype=np.float64)
+    non_empty: NDArray[np.float64] = np.array([1.0, 2.0, 3.0])
+    assert math.isnan(_common_support(empty, non_empty))
+    assert math.isnan(_common_support(non_empty, empty))
+    assert math.isnan(_common_support(empty, empty))
+
+
+def _partial_overlap_ratings() -> tuple[Ratings, dict[Hashable, float]]:
+    """5 reference + 5 focal items, external per-item conditioner values that partly
+    overlap by construction: R = [1,2,3,4,5], F = [3,4,5,6,7]."""
+    ref = [[1, 2, 2], [3, 3, 4], [5, 4, 5], [2, 1, 2], [4, 5, 4]]
+    foc = [[3, 2, 3], [4, 3, 4], [2, 1, 2], [5, 4, 5], [1, 2, 1]]
+    ratings = _make(ref, foc)
+    conditioner: dict[Hashable, float] = {
+        "ref0": 1.0,
+        "ref1": 2.0,
+        "ref2": 3.0,
+        "ref3": 4.0,
+        "ref4": 5.0,
+        "foc0": 3.0,
+        "foc1": 4.0,
+        "foc2": 5.0,
+        "foc3": 6.0,
+        "foc4": 7.0,
+    }
+    return ratings, conditioner
+
+
+def test_conditioner_common_support_partial_overlap_hand_computed() -> None:
+    ratings, conditioner = _partial_overlap_ratings()
+    res = logistic_dif(ratings, focal="foc", reference="ref", conditioner=conditioner)
+    # Same hand computation as the helper test above: (3+3)/(5+5) = 0.6.
+    assert res.conditioner_common_support == pytest.approx(0.6, abs=1e-12)
+
+
+def test_conditioner_common_support_disjoint_ranges_is_zero() -> None:
+    ref = [[1, 2, 2], [3, 3, 4], [5, 4, 5], [2, 1, 2], [4, 5, 4]]
+    foc = [[3, 2, 3], [4, 3, 4], [2, 1, 2], [5, 4, 5], [1, 2, 1]]
+    ratings = _make(ref, foc)
+    conditioner: dict[Hashable, float] = {
+        "ref0": 1.0,
+        "ref1": 2.0,
+        "ref2": 3.0,
+        "ref3": 4.0,
+        "ref4": 5.0,
+        "foc0": 10.0,
+        "foc1": 11.0,
+        "foc2": 12.0,
+        "foc3": 13.0,
+        "foc4": 14.0,
+    }
+    res = logistic_dif(ratings, focal="foc", reference="ref", conditioner=conditioner)
+    assert res.conditioner_common_support == 0.0
+
+
+def test_conditioner_common_support_identical_range_is_one() -> None:
+    ref = [[1, 2, 2], [3, 3, 4], [5, 4, 5], [2, 1, 2], [4, 5, 4]]
+    foc = [[3, 2, 3], [4, 3, 4], [2, 1, 2], [5, 4, 5], [1, 2, 1]]
+    ratings = _make(ref, foc)
+    conditioner: dict[Hashable, float] = {
+        "ref0": 1.0,
+        "ref1": 2.0,
+        "ref2": 3.0,
+        "ref3": 4.0,
+        "ref4": 5.0,
+        "foc0": 1.0,
+        "foc1": 2.0,
+        "foc2": 3.0,
+        "foc3": 4.0,
+        "foc4": 5.0,
+    }
+    res = logistic_dif(ratings, focal="foc", reference="ref", conditioner=conditioner)
+    assert res.conditioner_common_support == pytest.approx(1.0, abs=1e-12)
+
+
+def test_conditioner_common_support_rest_score_representative_is_item_mean() -> None:
+    # Rest-score path (no external conditioner): the per-item representative is the item mean.
+    # Reference item means [1, 2, 3], focal item means [3, 4, 5]; the overlapping range is
+    # [3, 3], which holds exactly one value per side, so common_support = (1 + 1) / 6. This
+    # pins the rest-score branch of the representative-value selection, not just the external
+    # branch the other fixtures cover.
+    ratings = _make([[1, 1], [2, 2], [3, 3]], [[3, 3], [4, 4], [5, 5]])
+    res = logistic_dif(ratings, focal="foc", reference="ref")
+    assert res.conditioner_source == "rest_score"
+    assert res.conditioner_common_support == pytest.approx(2 / 6, abs=1e-12)
