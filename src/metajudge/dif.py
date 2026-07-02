@@ -19,14 +19,14 @@ fit is scipy alone.
 from __future__ import annotations
 
 import warnings
-from collections.abc import Hashable, Mapping
+from collections.abc import Hashable, Mapping, Sequence
 from dataclasses import dataclass
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy.optimize import minimize  # type: ignore[import-untyped]
 from scipy.special import expit  # type: ignore[import-untyped]
-from scipy.stats import chi2  # type: ignore[import-untyped]
+from scipy.stats import chi2, norm  # type: ignore[import-untyped]
 
 from metajudge._constants import MIN_EFFECTIVE
 from metajudge.data import Ratings
@@ -486,6 +486,13 @@ def logistic_dif(
     criterion-out mean across rubric dimensions) when you need a stronger instrument-level
     analysis; the interpretation is only as good as that conditioner.
 
+    Two scope limitations to keep in mind. First, the conditioner enters the model as a
+    single linear term, so the match assumes a linear quality-to-response relationship; a
+    strongly nonlinear one leaves residual confounding (DIF impurity) that this screen does
+    not remove. Second, this tests one focal-vs-reference pair. Sweeping many stratum pairs
+    inflates the familywise error rate, and no multiplicity correction is applied here;
+    adjust across the pairs you run (e.g. Holm) when screening more than one.
+
     Raises:
         ValueError: if ``focal`` or ``reference`` is not a stratum level; if an explicit
             conditioner omits an included item; if no independent conditioner can be
@@ -504,7 +511,13 @@ def logistic_dif(
     strata = ratings.strata()
     for level in (focal, reference):
         if level not in strata:
-            raise ValueError(f"stratum level not found: {level}")
+            # Stratum keys are coerced to str (see Ratings.strata), so an integer label 1
+            # is the key "1"; list the available levels so the mismatch is obvious.
+            available = ", ".join(repr(k) for k in sorted(strata))
+            raise ValueError(
+                f"stratum level not found: {level!r}. Available levels (as strings): "
+                f"{available}. Pass the label as a string."
+            )
 
     focal_items = set(strata[focal])
     reference_items = set(strata[reference])
@@ -574,6 +587,67 @@ def logistic_dif(
     )
 
 
+def holm_adjust(pvalues: Sequence[float]) -> list[float]:
+    """Holm-Bonferroni step-down familywise-error correction for a family of DIF tests.
+
+    When you screen more than one focal-vs-reference stratum pair, the per-pair p-values
+    (:attr:`DifResult.p_total`, or the uniform/nonuniform p-values) form a family and their
+    uncorrected significance inflates the familywise error rate. Pass them here to get
+    adjusted p-values that control it. The returned list aligns with the input order, and the
+    adjustment is monotone in the sorted p-values. Reproduces
+    ``statsmodels.stats.multitest.multipletests(method="holm")``.
+    """
+    p: NDArray[np.float64] = np.asarray(pvalues, dtype=float)
+    m = int(p.size)
+    if m == 0:
+        return []
+    order: NDArray[np.intp] = np.argsort(p)  # type: ignore[reportUnknownMemberType]
+    adjusted: NDArray[np.float64] = np.empty(m)
+    running = 0.0
+    for rank, idx in enumerate(order):
+        # Step-down: the rank-th smallest p is scaled by the number of hypotheses not yet
+        # rejected, then made monotone non-decreasing via a running max, and capped at 1.
+        running = max(running, (m - rank) * float(p[idx]))
+        adjusted[idx] = min(running, 1.0)
+    return [float(x) for x in adjusted]
+
+
+def _bca_bounds(
+    boot: NDArray[np.float64],
+    theta_hat: float,
+    jackknife: NDArray[np.float64],
+    pct_low: float,
+    pct_high: float,
+) -> tuple[float, float, bool]:
+    """Bias-corrected and accelerated (BCa) percentile bounds (Efron 1987).
+
+    ``pct_low``/``pct_high`` are the target percentiles (e.g. 2.5 and 97.5). ``jackknife``
+    holds the leave-one-cluster-out point estimates for the acceleration term. Returns
+    ``(low, high, ok)``; ``ok`` is ``False`` when the bias correction or acceleration is
+    non-finite (a boundary-degenerate statistic), and the caller should fall back to the
+    plain percentile interval. Matches ``scipy.stats.bootstrap(method="BCa")``.
+    """
+    b: NDArray[np.float64] = np.asarray(boot, dtype=float)
+    jack: NDArray[np.float64] = np.asarray(jackknife, dtype=float)
+    prop = float(np.mean(b < theta_hat))
+    if prop <= 0.0 or prop >= 1.0 or jack.size < 2:
+        return float("nan"), float("nan"), False
+    z0 = float(norm.ppf(prop))  # type: ignore[reportUnknownMemberType]
+    diff = jack.mean() - jack
+    denom = 6.0 * float(np.sum(diff**2)) ** 1.5
+    a = float(np.sum(diff**3) / denom) if denom > 0.0 else 0.0
+
+    def _adjust(pct: float) -> float:
+        z = float(norm.ppf(pct / 100.0))  # type: ignore[reportUnknownMemberType]
+        return float(norm.cdf(z0 + (z0 + z) / (1.0 - a * (z0 + z))))  # type: ignore[reportUnknownMemberType]
+
+    adj_low, adj_high = _adjust(pct_low), _adjust(pct_high)
+    if not (np.isfinite(adj_low) and np.isfinite(adj_high)) or adj_low >= adj_high:
+        return float("nan"), float("nan"), False
+    lo, hi = (float(x) for x in np.percentile(b, [100.0 * adj_low, 100.0 * adj_high]))  # type: ignore[reportUnknownMemberType]
+    return lo, hi, True
+
+
 # With fewer items per group the item-cluster bootstrap draws from too small a space of
 # distinct resample compositions for the percentile CI to be stable, even if n_effective
 # clears the convergence floor. The number of distinct resamples (multisets) of n items is
@@ -594,6 +668,14 @@ class ClusterBootstrapDif:
     ``n_effective`` is the count of non-degenerate resamples; when it falls below the
     reliability floor the bounds are indicative only and ``ci_reliable`` is ``False``. See
     docs/decisions/2026-06-23-e07-dif-cluster-bootstrap.md.
+
+    ``ci_method`` records how the bounds were formed: ``"bca"`` is the bias-corrected and
+    accelerated interval (Efron 1987), with the acceleration from a leave-one-cluster-out
+    jackknife; ``"percentile"`` is the plain percentile fallback used when the statistic is
+    boundary-degenerate (the Nagelkerke R-squared change is bounded below at 0, where the
+    bias correction is undefined). Near that boundary a plain-percentile bound is fragile, so
+    a negligible-vs-nonnegligible verdict from one is indicative, not decisive; read the
+    point estimate alongside it. BCa corrects the bias but the bound is still an estimate.
     """
 
     base: DifResult
@@ -605,6 +687,7 @@ class ClusterBootstrapDif:
     ci_level: float
     n_boot: int
     n_effective: int
+    ci_method: str
 
     @property
     def ci_reliable(self) -> bool:
@@ -629,13 +712,22 @@ def cluster_bootstrap_dif(
 ) -> ClusterBootstrapDif:
     """Cluster bootstrap of :func:`logistic_dif` resampling item blocks.
 
-    Keeps the analytic point estimate (``base``) and adds percentile confidence intervals
-    at level ``ci`` (default 0.95 -> 2.5/97.5) for the Nagelkerke R-squared change and the
-    total chi-square, computed by resampling items with replacement, stratified within the
-    focal and reference groups, with each item's full rater block carried intact. This makes
-    the effective sample the number of independent item clusters per group rather than the
-    pooled cell count, and preserves the within-item rater correlation the analytic i.i.d.
-    model ignores.
+    Keeps the analytic point estimate (``base``) and adds confidence intervals at level
+    ``ci`` (default 0.95 -> 2.5/97.5) for the Nagelkerke R-squared change and the total
+    chi-square, computed by resampling items with replacement, stratified within the focal
+    and reference groups, with each item's full rater block carried intact. This makes the
+    effective sample the number of independent item clusters per group rather than the pooled
+    cell count, and preserves the within-item rater correlation the analytic i.i.d. model
+    ignores.
+
+    The intervals are bias-corrected and accelerated (BCa, Efron 1987) when computable, with
+    the acceleration from a leave-one-cluster-out jackknife; ``ClusterBootstrapDif.ci_method``
+    reports ``"bca"``. It falls back to the plain percentile interval (``"percentile"``) in
+    two cases: when the statistic is boundary-degenerate (the R-squared change piles at its 0
+    lower bound, where the bias correction is undefined), and when the panel is large enough
+    that the jackknife (one refit per item cluster) would add more fits than the bootstrap
+    itself. That gate keeps a robust run at ``O(n_boot)`` fits: BCa is applied where it both
+    helps most (small samples, where the percentile interval undercovers) and is cheap.
 
     Degenerate resamples (a draw with no ordinal variation, or one that fails the engine's
     identifiability guards) are dropped; the realized count is ``n_effective``. Below the
@@ -718,10 +810,7 @@ def cluster_bootstrap_dif(
         chi2_totals.append(stats.chi2_total)
         r2_deltas.append(stats.nagelkerke_r2_delta)
 
-    if r2_deltas:
-        r2_low, r2_high = (float(x) for x in np.percentile(r2_deltas, [pct_low, pct_high]))  # type: ignore[reportUnknownMemberType]
-        c2_low, c2_high = (float(x) for x in np.percentile(chi2_totals, [pct_low, pct_high]))  # type: ignore[reportUnknownMemberType]
-    else:
+    if not r2_deltas:
         warnings.warn(
             f"cluster_bootstrap_dif: all {n_boot} resamples were degenerate or failed to "
             "converge; CI bounds are NaN. Inspect the base result for identifiability issues "
@@ -729,8 +818,80 @@ def cluster_bootstrap_dif(
             UserWarning,
             stacklevel=2,
         )
-        r2_low = r2_high = float("nan")
-        c2_low = c2_high = float("nan")
+        return ClusterBootstrapDif(
+            base=base,
+            r2_delta_ci_low=float("nan"),
+            r2_delta_ci_high=float("nan"),
+            chi2_total_ci_low=float("nan"),
+            chi2_total_ci_high=float("nan"),
+            cluster="item",
+            ci_level=ci,
+            n_boot=n_boot,
+            n_effective=0,
+            ci_method="percentile",
+        )
+
+    r2_arr: NDArray[np.float64] = np.asarray(r2_deltas, dtype=float)
+    c2_arr: NDArray[np.float64] = np.asarray(chi2_totals, dtype=float)
+
+    # BCa needs a leave-one-cluster-out jackknife: one analytic refit per item cluster. That
+    # is worth it when the sample is small (where the percentile interval undercovers and the
+    # jackknife is cheap), but for a large panel the jackknife dominates the whole run and the
+    # percentile interval is already decent. Gate on cost: run BCa only when the jackknife
+    # would not add more fits than the bootstrap itself; otherwise keep the percentile CI.
+    ci_method = "percentile"
+    r2_low = r2_high = c2_low = c2_high = float("nan")
+    combined: list[tuple[Hashable, bool]] = [(it, True) for it in focal_items] + [
+        (it, False) for it in reference_items
+    ]
+    if len(combined) <= n_boot:
+        r2_jack: list[float] = []
+        c2_jack: list[float] = []
+        for leave in range(len(combined)):
+            j_scores: list[float] = []
+            j_groups: list[float] = []
+            j_cond: list[float] = []
+            n_f = n_r = 0
+            for pos, (item, is_focal) in enumerate(combined):
+                if pos == leave:
+                    continue
+                _emit_item_rows(
+                    block_values[item],
+                    is_focal=is_focal,
+                    item_cond=float(conditioner[item]) if conditioner is not None else None,
+                    scores=j_scores,
+                    groups=j_groups,
+                    cond_rows=j_cond,
+                )
+                n_f += is_focal
+                n_r += not is_focal
+            if n_f == 0 or n_r == 0:
+                continue
+            try:
+                j_stats = _dif_stats(j_scores, j_groups, j_cond, want_split=False)
+            except ValueError:
+                continue
+            if not j_stats.converged:
+                continue
+            r2_jack.append(j_stats.nagelkerke_r2_delta)
+            c2_jack.append(j_stats.chi2_total)
+
+        r2_jack_arr: NDArray[np.float64] = np.asarray(r2_jack, dtype=float)
+        c2_jack_arr: NDArray[np.float64] = np.asarray(c2_jack, dtype=float)
+        r2_low, r2_high, ok_r2 = _bca_bounds(
+            r2_arr, base.nagelkerke_r2_delta, r2_jack_arr, pct_low, pct_high
+        )
+        c2_low, c2_high, ok_c2 = _bca_bounds(
+            c2_arr, base.chi2_total, c2_jack_arr, pct_low, pct_high
+        )
+        if ok_r2 and ok_c2:
+            ci_method = "bca"
+
+    if ci_method == "percentile":
+        # Either the panel was too large to justify the jackknife, or BCa was undefined for a
+        # boundary-degenerate statistic (the R2-change piles at 0); use the percentile CI.
+        r2_low, r2_high = (float(x) for x in np.percentile(r2_arr, [pct_low, pct_high]))  # type: ignore[reportUnknownMemberType]
+        c2_low, c2_high = (float(x) for x in np.percentile(c2_arr, [pct_low, pct_high]))  # type: ignore[reportUnknownMemberType]
 
     return ClusterBootstrapDif(
         base=base,
@@ -742,4 +903,5 @@ def cluster_bootstrap_dif(
         ci_level=ci,
         n_boot=n_boot,
         n_effective=len(r2_deltas),
+        ci_method=ci_method,
     )

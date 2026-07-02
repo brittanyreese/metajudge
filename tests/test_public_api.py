@@ -14,6 +14,9 @@ def test_public_symbols_exported() -> None:
         "IccResult",
         "logistic_dif",
         "DifResult",
+        "cluster_bootstrap_dif",
+        "ClusterBootstrapDif",
+        "holm_adjust",
     ]:
         assert hasattr(metajudge, name), name
 

@@ -40,15 +40,16 @@ It prints the actual report card below (these are the live demo numbers, not a m
 
 ## Reliability
 - Krippendorff's alpha (ordinal): 0.554 [95% CI 0.529, 0.578]
-- ICC(2,1): 0.573; ICC(2,k): 0.801 (1600 targets x 3 raters)
+- ICC(2,1): 0.573 [95% CI 0.449, 0.664]; ICC(2,k): 0.801 [95% CI 0.710, 0.856] (1600 targets x 3 raters)
 
 ## DIF (panel-relative, rest-score conditioner)
-> Note: the rest-score conditioner cannot see bias shared across the entire rater panel, so this is panel-relative DIF, not an instrument-level fairness clearance. Pass a valid independent external quality conditioner; instrument-level interpretation requires it and holds only when the conditioner is valid, independent, and appropriate to the evaluation context.
+> Note: the rest-score conditioner cannot see bias shared across the entire rater panel, so this is panel-relative DIF, not an instrument-level fairness clearance. Pass a valid independent external quality conditioner for a stronger instrument-level analysis.
 
 - abstractive vs extractive (conditioner: rest_score, n=4800)
-- Uniform DIF: chi2(1)=12.15, p=0.0005
-- Nonuniform DIF: chi2(1)=0.17, p=0.6773
 - Effect size (Nagelkerke R2 delta): 0.002 (Jodoin-Gierl class A)
+- Clustering-robust significance: not assessed. The analytic p-values below are anti-conservative under the crossed rater x item design; run audit(robust=True) or cluster_bootstrap_dif() for a clustering-robust flag.
+- Uniform DIF: chi2(1)=12.15, p=0.0005 [analytic, unclustered]
+- Nonuniform DIF: chi2(1)=0.17, p=0.6773 [analytic, unclustered]
 ```
 
 ## Audit your own judge
