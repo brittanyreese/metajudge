@@ -20,6 +20,7 @@ from metajudge.dif import (
 from metajudge.reliability import (
     AlphaResult,
     IccResult,
+    LevelOfMeasurement,
     icc,
     krippendorff_alpha,
 )
@@ -200,6 +201,10 @@ class ReportCard:
             "# metajudge report card",
             "",
             "## Reliability",
+            "> Note: high agreement (alpha, ICC) is not evidence the rubric measures the "
+            "intended construct. It shows raters apply the scale consistently, not that the "
+            "scale captures the quality you care about.",
+            "",
             alpha_ci,
             f"- ICC(2,1): {ic.icc1:.3f} [95% CI {ic.icc1_ci_low:.3f}, {ic.icc1_ci_high:.3f}]; "
             f"ICC(2,k): {ic.icck:.3f} [95% CI {ic.icck_ci_low:.3f}, {ic.icck_ci_high:.3f}] "
@@ -283,7 +288,7 @@ def audit(
     *,
     focal: str,
     reference: str,
-    level: str = "ordinal",
+    level: LevelOfMeasurement | str = "ordinal",
     seed: int = 0,
     conditioner: Mapping[Hashable, float] | None = None,
     robust: bool = False,

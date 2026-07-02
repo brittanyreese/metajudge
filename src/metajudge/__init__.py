@@ -11,7 +11,13 @@ from metajudge.dif import (
     logistic_dif,
     sweep,
 )
-from metajudge.reliability import AlphaResult, IccResult, icc, krippendorff_alpha
+from metajudge.reliability import (
+    AlphaResult,
+    IccResult,
+    LevelOfMeasurement,
+    icc,
+    krippendorff_alpha,
+)
 from metajudge.report import Flags, ReportCard, audit
 
 __version__ = "0.1.0"
@@ -23,6 +29,7 @@ __all__ = [
     "DifSweep",
     "Flags",
     "IccResult",
+    "LevelOfMeasurement",
     "Ratings",
     "ReportCard",
     "__version__",

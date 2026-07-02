@@ -80,6 +80,7 @@ SC2. Prior-art trip with pre-ship re-verify.
 - Covers R3, R11. This is the contribution's own falsification criterion.
 - If a shipped, pip-installable practitioner library covers DIF across output strata for subjective LLM-judge panels before publication, drop the novel-method positioning and reframe to implementation quality plus interoperability. The work continues; the messaging changes.
 - Before publishing, re-run the DIF prior-art search in the days ahead of launch; if tripped, reframe the messaging before publishing, not after.
+- Re-check log (2026-07-02, multi-persona review, live search): **does not trip.** The closest work found, Choi et al. (2026, arXiv:2602.00521), diagnoses LLM-judge reliability via IRT/GRM and explicitly defers DIF-style stratum comparisons to future work. Fair-IRT (Xu et al. 2025) and fl-IRT-ing (Bachmann et al. 2024) apply IRT to fairness/bias measurement but not to DIF across LLM-judge output strata. No shipped, pip-installable practitioner library was found covering this surface; see `docs/REFERENCES.md` for full citations.
 
 ## Success Criteria
 

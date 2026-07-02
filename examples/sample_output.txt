@@ -1,10 +1,14 @@
 # metajudge report card
 
 ## Reliability
+> Note: high agreement (alpha, ICC) is not evidence the rubric measures the intended construct. It shows raters apply the scale consistently, not that the scale captures the quality you care about.
+
 - Krippendorff's alpha (ordinal): 0.554 [95% CI 0.529, 0.578]
 - ICC(2,1): 0.573 [95% CI 0.449, 0.664]; ICC(2,k): 0.801 [95% CI 0.710, 0.856] (1600 targets x 3 raters)
 
 ## DIF (panel-relative, rest-score conditioner)
+> Note: strata nest items (each item is in one stratum), so this matches quality between nested item sets, not within shared items. If the strata differ in quality, the conditioner correlates with the group and residual confounding (DIF impurity) remains; read the effect size as screening evidence, not a confound-free fairness verdict.
+
 > Note: the rest-score conditioner cannot see bias shared across the entire rater panel, so this is panel-relative DIF, not an instrument-level fairness clearance. Pass a valid independent external quality conditioner for a stronger instrument-level analysis.
 
 - abstractive vs extractive (conditioner: rest_score, n=4800)

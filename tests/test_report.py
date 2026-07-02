@@ -204,6 +204,16 @@ def test_markdown_external_names_conditioner_and_warns_about_interpretation() ->
     assert "fairness clearance" not in md
 
 
+def test_markdown_reliability_block_carries_validity_caveat() -> None:
+    # High agreement (alpha/ICC) is evidence raters use the scale consistently, not
+    # evidence the rubric measures the intended construct. The reliability block must
+    # state that above the DIF section, not leave it implicit in the ADRs.
+    md = _card(converged=True).to_markdown()
+    assert "not evidence" in md
+    assert "construct" in md
+    assert md.index("construct") < md.index("## DIF")
+
+
 def test_markdown_warns_when_dif_fit_not_converged() -> None:
     md = _card(converged=False).to_markdown()
     assert "did not converge" in md

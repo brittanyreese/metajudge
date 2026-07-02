@@ -13,7 +13,7 @@ A methodology review flagged this as the sharpest inference gap. A literature ch
 - French and Finch (2010, Journal of Educational Measurement 47(3)) showed by simulation that single-level logistic-regression DIF fails to hold the nominal .05 Type-I rate under multilevel data, while a hierarchical (random-effects) model restores it.
 - Musca et al. (2011, Frontiers in Psychology) showed that ignoring intraclass correlation inflates Type-I error severely in least-squares analysis of nested data.
 - Cameron and Miller (2015) and Liang and Zeger (1986) establish cluster-robust inference as the standard remedy when full random-effects modeling is not used.
-- den Noortgate and De Boeck (2005, JEBS) and Finch et al. (2025) give the principled fix: a logistic mixed / GEE DIF model.
+- den Noortgate and De Boeck (2005, JEBS) give the principled fix: a logistic mixed / GEE DIF model.
 
 The literature also establishes that the magnitude (and even the sign) of the inflation is design-dependent: French and Finch found severe inflation only when the grouping variable is between-cluster, and the correction can cost power otherwise. The magnitude is therefore an empirical quantity for this crossed rater-by-item design, not a constant to borrow.
 
