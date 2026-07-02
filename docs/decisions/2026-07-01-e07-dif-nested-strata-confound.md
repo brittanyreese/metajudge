@@ -34,6 +34,22 @@ The engine cannot tell regime 2 from regime 3 from the fit alone: both converge 
 3. The identifiability refusal (regime 1) stays. Refusing an unidentifiable DIF is preferable to reporting an indefensible one, consistent with the single-rater and constant-conditioner guards.
 4. The honest reading is recorded here and referenced from the report card: a non-negligible effect size under this screen flags a stratum pair worth investigating with a stronger design (shared items, or an external conditioner known to overlap across strata), not a settled instrument-level bias finding.
 
+## Per-run diagnostic
+
+The decision above states the confound as a design fact, true of every run. It does not tell a reader whether a given run sits in regime 2 or regime 3. `DifResult` now carries three fields that answer that, per run:
+
+1. `conditioner_group_corr: float`. The Pearson correlation between the standardized per-row conditioner and the group indicator. This is the same quantity the engine already computes for its identifiability guard (the one that refuses when `|corr| > 0.999`), now exposed on the result instead of only checked internally.
+2. `conditioner_common_support: float`. An item-level overlap measure: the share of items, focal and reference pooled, whose per-item conditioner value falls in the range both strata cover. It is `1.0` when the two strata cover the same range and moves toward `0.0` as they separate. The per-item representative is the external conditioner value where one was supplied, or the item's mean rating under the rest-score default. This is the more interpretable, reader-facing signal: it says how much the two strata actually overlap, not just how linearly correlated the match is.
+3. `conditioner_overlap_weak: bool`. An advisory flag, set when `0.7 <= |conditioner_group_corr| <= 0.999` (the constant is `_OVERLAP_WEAK_CORR = 0.7`). It marks regime 2 from the confound analysis above: DIF is identifiable, but the conditioner is strongly, not perfectly, correlated with the group, so the reported effect size may be absorbing a real between-strata quality gap as apparent DIF.
+
+The flag drives the report card. When `conditioner_overlap_weak` is set, `ReportCard.to_markdown` replaces the blanket nested-strata caveat from item 2 of the Decision above with a run-specific warning that names the correlation and common-support numbers for that run, placed above the DIF statistics.
+
+HONEST NOTE: `0.7` is a project convention marking where the single linear match should be read with suspicion, not an empirically validated cutoff. Validating it, for example with a simulation over a range of strata-separation levels, is a separate research task. This mirrors how the Jodoin-Gierl thresholds and the Brant proportional-odds threshold are already handled elsewhere in this build: stated conventions, honestly flagged, not claims of calibration.
+
+`conditioner_common_support` is reported on the result and, when the flag fires, in the report-card warning, but it is not itself thresholded. There is deliberately no second gate on it, to avoid calibrating a second cutoff on top of the first.
+
+The flag is advisory only, like `po_violation` elsewhere in this module: the `|corr| > 0.999` refusal in `_dif_stats` remains the only hard stop. The estimator, the refusal, and the pinned DIF oracle values are unchanged by this diagnostic.
+
 ## What this changes in the build
 
 - `report.py` `to_markdown` gains a conditioner-source-independent caveat, placed above the DIF statistics, naming the nested-strata match and the residual-confounding risk.
