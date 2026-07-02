@@ -101,11 +101,13 @@ def krippendorff_alpha(
 
 @dataclass(frozen=True)
 class IccResult:
-    """ICC(2,1)/(2,k) with McGraw & Wong (1996) exact F-based confidence intervals.
+    """ICC(2,1)/(2,k) with McGraw & Wong (1996) F-based confidence intervals.
 
     ``icc1_ci_*``/``icck_ci_*`` are the 95% absolute-agreement limits (McGraw & Wong,
-    1996, *Psychological Methods*, Case 2). The ICC(2,k) interval is the Spearman-Brown
-    step-up of the ICC(2,1) bounds, matching pingouin's ``ICC(A,1)``/``ICC(A,k)``.
+    1996, *Psychological Methods*, Case 2). The interval is F-based with a Satterthwaite
+    approximation for the denominator degrees of freedom, so it is approximate, not exact;
+    it is the interval pingouin and the R ``irr`` package report for ``ICC(A,1)``/
+    ``ICC(A,k)``. The ICC(2,k) interval is the Spearman-Brown step-up of the ICC(2,1) bounds.
     """
 
     icc1: float
