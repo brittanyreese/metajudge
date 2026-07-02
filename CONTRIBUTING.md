@@ -36,7 +36,7 @@ pre-commit runs these locally; CI runs them on push. Numerical correctness is no
 
 ## Pull requests
 
-`main` is protected: changes land via a pull request with CI green (the 3.11/3.12/3.13 matrix) and a linear history. As the sole maintainer you can bypass for genuine trivia, but the default path is a PR, because it gives you a CI gate and a self-review pass.
+`main` is protected: changes land via a pull request with CI green (the 3.11/3.12/3.13 matrix) and a linear history. The sole maintainer can bypass for genuine trivia, but the default path is a PR: it gives every change a CI gate and a self-review pass.
 
 Flow for non-trivial work:
 

@@ -26,7 +26,7 @@ clone. These two files are that recipe.
   to the pinned literals, at the same tolerances `tests/test_dif.py` asserts.
 
 If a regenerated constant ever disagrees with a pinned literal, the reference
-(`polr`) wins and the literal must be corrected — never loosen the tolerance
+(`polr`) wins and the literal must be corrected. Never loosen the tolerance
 (numerical-reference convention, `AGENTS.md`).
 
 ## Running
@@ -48,4 +48,4 @@ install.packages("MASS")
 
 `tests/test_oracle_provenance.py` runs this harness in CI when `Rscript` and
 `MASS` are present, and skips cleanly when they are not (R is not a project
-runtime or CI dependency — the engine itself is scipy-only).
+runtime or CI dependency; the engine itself is scipy-only).

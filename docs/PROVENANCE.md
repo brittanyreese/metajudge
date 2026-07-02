@@ -7,7 +7,7 @@ This file records why metajudge is built the way it is: the problem framing, the
 - The contribution is the narrow measurement-rigor surface metajudge can defend today: reliability plus DIF across output strata for subjective multi-rater ordinal scoring.
 - Adjacent methods work is active (Fair-IRT, fl-IRT-ing, variance papers, and judge-calibration tooling), so E07 keeps its method choices current with that literature.
 - The original full-instrument / MFRM (many-facet Rasch) plan is archived product context, not an active roadmap commitment. Python MFRM tooling is thin (FACETS proprietary; R via TAM/immer/sirt), which is part of why that engine is not scheduled here.
-- The library ships MIT-free. Its value is the published method and the demonstrated fit on real instruments.
+- The library ships free under an MIT license. Its value is the published method and the demonstrated fit on real instruments.
 
 ## Research trail
 

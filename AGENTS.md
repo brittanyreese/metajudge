@@ -1,6 +1,6 @@
 # metajudge: project context
 
-Pip-installable layer that audits an LLM judge/rubric instrument before it ships: a reliability + DIF report card (E07), growing into a four-pillar instrument (E04). Intent, scope, and the ship gate live in `SPEC.md`; the phase plan in `docs/roadmap.md`. This file is the canonical, shareable working context.
+Pip-installable layer that audits an LLM judge/rubric instrument before it ships: a reliability + DIF report card (E07). The four-pillar instrument (E04) was the original hypothesis and is archived, not an active roadmap commitment (see `SPEC.md` and `docs/roadmap.md`). Intent, scope, and the ship gate live in `SPEC.md`; the phase plan in `docs/roadmap.md`. This file is the canonical, shareable working context.
 
 ## Commands
 
