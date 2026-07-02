@@ -377,6 +377,19 @@ def test_unknown_levels_raise() -> None:
         logistic_dif(r, focal="foc", reference="nope")
 
 
+def test_unknown_level_error_lists_available_levels() -> None:
+    # Integer stratum labels become string keys; a caller passing focal=1 must see the
+    # available (stringified) levels and the coercion hint, not a bare "not found".
+    ref = [[1, 2], [3, 4], [2, 1]]
+    r = _make(ref, ref)
+    with pytest.raises(ValueError) as exc:
+        logistic_dif(r, focal="1", reference="ref")
+    msg = str(exc.value)
+    assert "Available levels" in msg
+    assert "'foc'" in msg and "'ref'" in msg
+    assert "as a string" in msg
+
+
 def test_jodoin_gierl_classification_boundaries() -> None:
     assert _classify_jodoin_gierl(0.02) == "A"
     assert _classify_jodoin_gierl(0.05) == "B"

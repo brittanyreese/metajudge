@@ -170,7 +170,8 @@ class ReportCard:
             "",
             "## Reliability",
             alpha_ci,
-            f"- ICC(2,1): {ic.icc1:.3f}; ICC(2,k): {ic.icck:.3f} "
+            f"- ICC(2,1): {ic.icc1:.3f} [95% CI {ic.icc1_ci_low:.3f}, {ic.icc1_ci_high:.3f}]; "
+            f"ICC(2,k): {ic.icck:.3f} [95% CI {ic.icck_ci_low:.3f}, {ic.icck_ci_high:.3f}] "
             f"({ic.n_targets} targets x {ic.n_raters} raters)",
             "",
             dif_header,
@@ -224,7 +225,13 @@ class ReportCard:
             if verdict
             else "no robust DIF (CI reaches the negligible band)"
         )
-        return [f"- Clustering-robust flag: {label} ({ci})."]
+        return [
+            f"- Clustering-robust flag: {label} ({ci}).",
+            "  Caveat: the flag rests on a percentile CI bound compared to the "
+            f"Jodoin-Gierl {_JG_NEGLIGIBLE:.3f} boundary. The R2-change is bounded at 0, "
+            "where the percentile method is least accurate, so a verdict from a bound sitting "
+            "near the boundary is fragile; read the point estimate and CI, not the label alone.",
+        ]
 
 
 def audit(

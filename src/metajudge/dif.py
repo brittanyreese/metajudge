@@ -486,6 +486,13 @@ def logistic_dif(
     criterion-out mean across rubric dimensions) when you need a stronger instrument-level
     analysis; the interpretation is only as good as that conditioner.
 
+    Two scope limitations to keep in mind. First, the conditioner enters the model as a
+    single linear term, so the match assumes a linear quality-to-response relationship; a
+    strongly nonlinear one leaves residual confounding (DIF impurity) that this screen does
+    not remove. Second, this tests one focal-vs-reference pair. Sweeping many stratum pairs
+    inflates the familywise error rate, and no multiplicity correction is applied here;
+    adjust across the pairs you run (e.g. Holm) when screening more than one.
+
     Raises:
         ValueError: if ``focal`` or ``reference`` is not a stratum level; if an explicit
             conditioner omits an included item; if no independent conditioner can be
@@ -504,7 +511,13 @@ def logistic_dif(
     strata = ratings.strata()
     for level in (focal, reference):
         if level not in strata:
-            raise ValueError(f"stratum level not found: {level}")
+            # Stratum keys are coerced to str (see Ratings.strata), so an integer label 1
+            # is the key "1"; list the available levels so the mismatch is obvious.
+            available = ", ".join(repr(k) for k in sorted(strata))
+            raise ValueError(
+                f"stratum level not found: {level!r}. Available levels (as strings): "
+                f"{available}. Pass the label as a string."
+            )
 
     focal_items = set(strata[focal])
     reference_items = set(strata[reference])
@@ -594,6 +607,12 @@ class ClusterBootstrapDif:
     ``n_effective`` is the count of non-degenerate resamples; when it falls below the
     reliability floor the bounds are indicative only and ``ci_reliable`` is ``False``. See
     docs/decisions/2026-06-23-e07-dif-cluster-bootstrap.md.
+
+    These are plain percentile intervals (no bias correction or acceleration). The
+    Nagelkerke R-squared change is bounded below at 0, where the percentile method is least
+    accurate, so a CI bound sitting near the Jodoin-Gierl negligible boundary is fragile:
+    treat any negligible-vs-nonnegligible verdict from such a bound as indicative, not
+    decisive, and read the point estimate alongside it.
     """
 
     base: DifResult

@@ -31,7 +31,16 @@ def _card(*, converged: bool, conditioner_source: str = "rest_score") -> ReportC
     alpha = AlphaResult(
         alpha=0.5, ci_low=0.4, ci_high=0.6, level="ordinal", n_bootstrap=1000, n_effective=1000
     )
-    ic = IccResult(icc1=0.3, icck=0.6, n_targets=40, n_raters=3)
+    ic = IccResult(
+        icc1=0.3,
+        icck=0.6,
+        n_targets=40,
+        n_raters=3,
+        icc1_ci_low=0.1,
+        icc1_ci_high=0.5,
+        icck_ci_low=0.25,
+        icck_ci_high=0.75,
+    )
     dif = DifResult(
         chi2_total=1.0,
         chi2_uniform=0.5,
@@ -52,7 +61,16 @@ def _card(*, converged: bool, conditioner_source: str = "rest_score") -> ReportC
 
 
 def _card_with_alpha(alpha: AlphaResult) -> ReportCard:
-    icc_result = IccResult(icc1=0.8, icck=0.9, n_targets=10, n_raters=3)
+    icc_result = IccResult(
+        icc1=0.8,
+        icck=0.9,
+        n_targets=10,
+        n_raters=3,
+        icc1_ci_low=0.6,
+        icc1_ci_high=0.9,
+        icck_ci_low=0.7,
+        icck_ci_high=0.95,
+    )
     dif = DifResult(
         chi2_total=1.0,
         chi2_uniform=0.5,
@@ -241,6 +259,10 @@ def test_markdown_robust_shows_cluster_flag_with_effect_size_ci() -> None:
     assert "Clustering-robust flag" in md
     assert "item-cluster bootstrap" in md
     assert "not assessed" not in md  # significance WAS assessed
+    # The verdict rests on a percentile CI bound vs the JG boundary; the card must disclose
+    # that the percentile method is least accurate at the R2-change's lower bound of 0.
+    assert "percentile CI" in md
+    assert "boundary" in md
 
 
 def test_flags_dif_robustly_nonnegligible_true_when_ci_clears_band() -> None:

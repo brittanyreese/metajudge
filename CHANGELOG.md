@@ -4,8 +4,17 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- `IccResult` now carries McGraw & Wong (1996) exact F-based 95% confidence intervals for ICC(2,1) and ICC(2,k) (`icc1_ci_low/high`, `icck_ci_low/high`), matching pingouin's `ICC(A,1)`/`ICC(A,k)` bounds. The report card renders them, so the reliability pillar no longer ships a bare point estimate.
+
 ### Changed
 
+- The clustering-robust DIF flag now carries a caveat that its verdict rests on a percentile CI bound compared to the Jodoin-Gierl boundary, where the (0-bounded) R²-change makes the percentile method least accurate; `ClusterBootstrapDif` documents the same limitation.
+- `logistic_dif` documents two scope limitations: the conditioner enters linearly (residual confounding under a nonlinear quality-response relationship) and no familywise correction is applied across multiple stratum pairs.
+- `logistic_dif`'s unknown-stratum error now lists the available (stringified) levels and notes labels are matched as strings, so integer stratum labels no longer fail opaquely.
+- `Ratings.wide()` uses `DataFrame.pivot` (raises on duplicate item-rater cells) instead of `pivot_table` (silent mean), keeping the one-cell-per-pair invariant on every construction path.
+- `krippendorff_alpha` documents that its bootstrap resamples units, not raters, so the CI understates panel-sampling uncertainty for a small panel.
 - Tightened DIF report language: external conditioners are now labeled as external-conditioner DIF and carry an explicit validity caveat instead of being treated as automatic instrument-level evidence.
 - `Ratings.from_long` now refuses duplicate item-rater cells and missing stratum values rather than silently averaging duplicates or carrying null strata into DIF.
 - `cluster_bootstrap_dif` now drops non-converged bootstrap refits from confidence intervals and reflects the surviving count in `n_effective`. CI bounds are `nan` when no resamples survive (previously collapsed to the point estimate).
