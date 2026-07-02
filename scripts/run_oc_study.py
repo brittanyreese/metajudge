@@ -15,10 +15,13 @@ sim/oc_study.py; re-running a block reproduces its CSV byte-for-byte.
 from __future__ import annotations
 
 import argparse
+import sys
 import time
 from pathlib import Path
 
-from sim.oc_study import run_block, study_blocks
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from sim.oc_study import run_block, study_blocks  # noqa: E402
 
 
 def main() -> None:

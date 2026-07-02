@@ -61,6 +61,24 @@ To audit a real instrument, point metajudge at the output of an existing judge r
 
 For a self-contained, end-to-end example that builds the judge panel itself, [`examples/audit_llm_judge.py`](https://github.com/brittanyreese/metajudge/blob/main/examples/audit_llm_judge.py) runs three LLM judges over 16 stratified summaries and prints the report card. `pip install "metajudge[examples] @ git+https://github.com/brittanyreese/metajudge@main"`, then `--mode live --provider gemini` calls Gemini models on a billed project (`GOOGLE_AI_API_KEY`), or `--mode live --provider openrouter` calls free-tier OpenRouter models (`OPENROUTER_API_KEY`, capacity not guaranteed). `--mode offline` is a seeded simulation that runs with no key or network.
 
+This is what a real LLM panel looks like through the same card (a live Gemini run, committed as [`examples/sample_output_llm.txt`](https://github.com/brittanyreese/metajudge/blob/main/examples/sample_output_llm.txt); at 16 items it is a format demonstration, not a study):
+
+```
+_LIVE LLM JUDGE PANEL (gemini) -- gemini-2.5-flash, gemini-2.5-flash-lite, gemini-3.5-flash_
+Judges: 3 | Items: 16 (extractive vs abstractive) | Score: coherence 1-5
+
+## Reliability
+- Krippendorff's alpha (ordinal): 0.993 [95% CI 0.960, 1.000]
+- ICC(2,1): 0.991; ICC(2,k): 0.997 (16 targets x 3 raters)
+
+## DIF (panel-relative, rest-score conditioner)
+- abstractive vs extractive (conditioner: rest_score, n=48)
+- Effect size (Nagelkerke R2 delta): 0.000 (Jodoin-Gierl class A)
+- Cluster-robust R2 delta CI: [0.000, 0.006] (n_effective=178 of 200)
+```
+
+The contrast with the human panel above is the point: three Gemini judges agree with each other almost perfectly (alpha 0.993 versus the human experts' 0.554), and near-perfect agreement is exactly when the reliability caveat matters most. A panel can be unanimous and still be unanimously wrong about the construct.
+
 ## Cluster-robust DIF confidence intervals
 
 The analytic likelihood-ratio test pools every (item, rater) cell as independent. In a crossed rater-by-item design that is anti-conservative: scores for the same item are correlated across raters. `cluster_bootstrap_dif` keeps the analytic point estimate and adds percentile confidence intervals (default 95%) for the effect size and the total-DIF chi-square by resampling whole item blocks. These are robustness intervals, not corrected p-values.
@@ -80,6 +98,8 @@ print(f"CI reliable: {cb.ci_reliable}  (n_effective={cb.n_effective})")
 ```
 
 Degenerate resamples (draws with no ordinal variation) are dropped; check `cb.ci_reliable` before reading the bounds. When fewer than 100 resamples survive, the bounds are indicative only and `cb.base` (the analytic estimate) is the honest number to report.
+
+One dependence axis remains unhandled: resampling item blocks preserves the cross-rater correlation within an item, but the same judge panel scores every item, and that cross-item within-rater dependence is not resampled. The intervals stay mildly optimistic on that axis; the principled fix is a mixed or GEE model, recorded as out of scope in the cluster-bootstrap ADR.
 
 ## How to read the report card
 
@@ -124,6 +144,8 @@ Every statistic is pinned to an external reference, not to internal consistency 
 - DIF is checked against R `MASS::polr`, the canonical proportional-odds fit, with an in-process cross-check against `statsmodels` logistic regression in the two-category limit. `statsmodels` and `pingouin` are test oracles only; they are never imported at runtime.
 
 When a reference value and a literal disagree, the reference wins and the literal is corrected. Tolerances are not loosened to make a test pass.
+
+Two test suites enforce this at different depths. Every push and pull request runs the fast suite (oracle pins, engine tests, quick simulation guards). A weekly [Rigor workflow](https://github.com/brittanyreese/metajudge/blob/main/.github/workflows/rigor.yml), also required before any release, runs the full-precision operating-characteristics tests (Type-I control, power, bootstrap coverage at 400 replications per cell) and refits the R `MASS::polr` oracle live.
 
 ## Citing
 
