@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from metajudge.diagnostics import brant_test
+from metajudge.dif import _brant_test  # type: ignore[reportPrivateUsage]
 
 _FIXTURES = Path(__file__).resolve().parents[1] / "sim" / "fixtures"
 _HOLDS = _FIXTURES / "brant_po_holds.csv"
@@ -46,7 +46,7 @@ def _load(path: Path) -> tuple[np.ndarray, np.ndarray]:
 
 def test_brant_omnibus_matches_r_reference() -> None:
     endog, exog = _load(_HOLDS)
-    res = brant_test(endog, exog, names=["x1", "x2"])
+    res = _brant_test(endog, exog, names=["x1", "x2"])
     assert res.converged
     assert res.omnibus_df == R_OMNIBUS_DF
     assert res.omnibus_chi2 == pytest.approx(R_OMNIBUS_CHI2, rel=0.02)
@@ -55,7 +55,7 @@ def test_brant_omnibus_matches_r_reference() -> None:
 
 def test_brant_per_predictor_matches_r_reference() -> None:
     endog, exog = _load(_HOLDS)
-    res = brant_test(endog, exog, names=["x1", "x2"])
+    res = _brant_test(endog, exog, names=["x1", "x2"])
     c1, df1, _ = res.per_predictor["x1"]
     c2, df2, _ = res.per_predictor["x2"]
     assert df1 == 2
@@ -70,7 +70,7 @@ def test_brant_magnitude_matches_r_reference_under_violation() -> None:
     # magnitudes against R brant, and confirm the violation localizes to x1 (x2 stays
     # proportional and is NOT flagged).
     endog, exog = _load(_VIOLATED)
-    res = brant_test(endog, exog, names=["x1", "x2"])
+    res = _brant_test(endog, exog, names=["x1", "x2"])
     assert res.converged
     assert res.omnibus_chi2 == pytest.approx(RV_OMNIBUS_CHI2, rel=0.02)
     c1, _, p1 = res.per_predictor["x1"]
@@ -92,7 +92,7 @@ def test_brant_flags_nonproportional_slopes() -> None:
     p_hi = 1.0 / (1.0 + np.exp(-(-1.0 - 2.2 * x1)))
     u = rng.random(n)
     y = (u > p_lo).astype(int) + (u > p_mid).astype(int) + (u > p_hi).astype(int)
-    res = brant_test(y.astype(np.int_), x1[:, None], names=["x1"])
+    res = _brant_test(y.astype(np.int_), x1[:, None], names=["x1"])
     assert res.converged
     assert res.per_predictor["x1"][2] < 1e-3  # PO violated -> small p
     assert res.omnibus_p < 1e-3

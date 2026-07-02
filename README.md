@@ -9,7 +9,7 @@ Audit a scoring instrument, an LLM-as-judge or a human rater panel, before you t
 ![License](https://img.shields.io/badge/license-MIT-green)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
-An LLM judge or scoring rubric is a measurement instrument. Before you report its numbers, you want to know whether the raters agree, whether scores drift between output types, and how large any drift is. `metajudge` answers those questions and prints a one-screen report card. The statistics are rater-agnostic: it audits any multi-rater ordinal panel, whether the raters are LLM judges or human annotators. It audits the scoring instrument, not the model under test.
+An LLM judge or scoring rubric is a measurement instrument. Before you report its numbers, you want to know whether the raters agree, whether scores drift between output types, and how large any drift is. `metajudge` answers those questions with a one-screen screening report card. The statistics are rater-agnostic: it audits any multi-rater ordinal panel, whether the raters are LLM judges or human annotators. It audits the scoring instrument, not the model under test.
 
 It complements the ground-truth side of LLM evaluation (accuracy benchmarks, IRT-over-judges): those need a gold label per item, while `metajudge` works on *subjective* ordinal scores (coherence, helpfulness, quality) where no gold label exists and the question is whether the instrument is reliable and unbiased across output strata.
 
@@ -43,7 +43,7 @@ It prints the actual report card below (these are the live demo numbers, not a m
 - ICC(2,1): 0.573; ICC(2,k): 0.801 (1600 targets x 3 raters)
 
 ## DIF (panel-relative, rest-score conditioner)
-> Note: the rest-score conditioner cannot see bias shared across the entire rater panel, so this is panel-relative DIF, not an instrument-level fairness clearance. Pass an external quality conditioner to test for instrument-level bias.
+> Note: the rest-score conditioner cannot see bias shared across the entire rater panel, so this is panel-relative DIF, not an instrument-level fairness clearance. Pass a valid independent external quality conditioner; instrument-level interpretation requires it and holds only when the conditioner is valid, independent, and appropriate to the evaluation context.
 
 - abstractive vs extractive (conditioner: rest_score, n=4800)
 - Uniform DIF: chi2(1)=12.15, p=0.0005
@@ -54,6 +54,8 @@ It prints the actual report card below (these are the live demo numbers, not a m
 ## Audit your own judge
 
 To audit a real instrument, point metajudge at the output of an existing judge runner. `Ratings.from_eval_instruments` maps the per-judge score frames produced by Epic's [`evaluation-instruments`](https://github.com/epic-open-source/evaluation-instruments) (`frame_from_evals`) into the `Ratings` the audit consumes, with rater = judge, item = sample, score = one rubric criterion. It is a local DataFrame transform that adds no dependency. A runnable, no-PHI walkthrough is in [docs/interop-epic.md](https://github.com/brittanyreese/metajudge/blob/main/docs/interop-epic.md).
+
+For a self-contained, end-to-end example that builds the judge panel itself, [`examples/audit_llm_judge.py`](https://github.com/brittanyreese/metajudge/blob/main/examples/audit_llm_judge.py) runs three LLM judges over 16 stratified summaries and prints the report card. `pip install metajudge[examples]`, then `--mode live --provider gemini` calls Gemini models on a billed project (`GOOGLE_AI_API_KEY`), or `--mode live --provider openrouter` calls free-tier OpenRouter models (`OPENROUTER_API_KEY`, capacity not guaranteed). `--mode offline` is a seeded simulation that runs with no key or network.
 
 ## Cluster-robust DIF confidence intervals
 
@@ -81,11 +83,11 @@ Reliability, Krippendorff's alpha and ICC. Both measure how much the raters agre
 
 DIF, differential item functioning. This asks whether abstractive outputs are scored differently from extractive outputs once you match on overall quality. The engine is ordinal logistic regression in the Zumbo tradition (single-pass, not lordif's iterative purification), run as three nested proportional-odds models, so it reports a uniform-DIF test, a nonuniform-DIF test, and an effect size (the Nagelkerke pseudo-R-squared change) classified A, B, or C by the Jodoin-Gierl thresholds. The demo shows why the card prints both a p-value and an effect size: at n = 4800 the uniform-DIF test is significant (p = 0.0005), but the effect size is 0.002, class A, which is negligible. The signal is detectable; the magnitude is not.
 
-The matching variable is a leave-one-rater-out rest score across the three expert raters, which uses the same exchangeable-rater assumption as the reliability pillar. That rest score detects bias relative to the rater panel and understates bias the whole panel shares, so the card labels this path panel-relative DIF. For instrument-level bias, pass an explicit external quality conditioner: `audit(ratings, focal=..., reference=..., conditioner=...)` accepts a sample-id to quality-score mapping. Read the default DIF output as a screening audit, not a confirmatory significance claim. When a p-value lands near a decision threshold, `cluster_bootstrap_dif` runs the same engine with item-block resampling and returns a 95% cluster-robust interval alongside the unchanged point estimate.
+The matching variable is a leave-one-rater-out rest score across the three expert raters, which uses the same exchangeable-rater assumption as the reliability pillar. That rest score detects bias relative to the rater panel and understates bias the whole panel shares, so the card labels this path panel-relative DIF. For a stronger DIF analysis, pass an explicit external quality conditioner: `audit(ratings, focal=..., reference=..., conditioner=...)` accepts a sample-id to quality-score mapping. External-conditioner DIF supports instrument-level interpretation only when the conditioner is valid, independent, and appropriate for the quality construct being matched. Read DIF output as a screening audit, not a confirmatory significance claim. When a p-value lands near a decision threshold, `cluster_bootstrap_dif` runs the same engine with item-block resampling and returns a 95% cluster-robust interval alongside the unchanged point estimate.
 
 ## Scope, stated honestly
 
-- It covers two pillars today: reliability (Krippendorff's alpha with a bootstrap CI, and ICC(2,1)/(2,k)) and DIF across one stratum. Validity and variance decomposition are a later phase and are not in this release.
+- It covers two pillars: reliability (Krippendorff's alpha with a bootstrap CI, and ICC(2,1)/(2,k)) and DIF across one stratum. It is not a full validity or variance-decomposition framework.
 - DIF is one stratum at a time. The analytic likelihood-ratio test pools observations as independent; in a crossed rater-by-item design that is anti-conservative. Use `cluster_bootstrap_dif` to get item-block-resampled confidence intervals alongside the analytic point estimate. The tool is a screen that flags instruments worth a closer look, not a final verdict.
 - The demo numbers illustrate the report-card format on a real corpus. They are not a published claim about SummEval.
 
