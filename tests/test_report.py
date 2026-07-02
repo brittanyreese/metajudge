@@ -10,7 +10,9 @@ from metajudge.reliability import AlphaResult, IccResult
 from metajudge.report import Flags, ReportCard, audit
 
 
-def _bootstrap(*, r2_low: float, r2_high: float, n_effective: int = 500) -> ClusterBootstrapDif:
+def _bootstrap(
+    *, r2_low: float, r2_high: float, n_effective: int = 500, ci_method: str = "percentile"
+) -> ClusterBootstrapDif:
     """A deterministic ClusterBootstrapDif for card-rendering tests (no refits)."""
     dif = _card(converged=True).dif
     return ClusterBootstrapDif(
@@ -23,6 +25,7 @@ def _bootstrap(*, r2_low: float, r2_high: float, n_effective: int = 500) -> Clus
         ci_level=0.95,
         n_boot=1000,
         n_effective=n_effective,
+        ci_method=ci_method,
     )
 
 
@@ -263,6 +266,19 @@ def test_markdown_robust_shows_cluster_flag_with_effect_size_ci() -> None:
     # that the percentile method is least accurate at the R2-change's lower bound of 0.
     assert "percentile CI" in md
     assert "boundary" in md
+
+
+def test_markdown_robust_bca_method_labels_and_caveats_bca() -> None:
+    card = ReportCard(
+        alpha=_card(converged=True).alpha,
+        icc=_card(converged=True).icc,
+        dif=_card(converged=True).dif,
+        dif_bootstrap=_bootstrap(r2_low=0.05, r2_high=0.12, ci_method="bca"),
+    )
+    md = card.to_markdown()
+    assert "BCa CI" in md  # the CI is labelled by its method
+    assert "bias-corrected accelerated (BCa)" in md  # caveat names the method
+    assert "percentile method is least accurate" not in md  # the percentile-only caveat
 
 
 def test_flags_dif_robustly_nonnegligible_true_when_ci_clears_band() -> None:

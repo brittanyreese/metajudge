@@ -213,7 +213,11 @@ class ReportCard:
                 f"- Clustering-robust flag: unavailable — all bootstrap resamples were "
                 f"degenerate ({counts})."
             ]
-        ci = f"R2 delta {pct}% CI [{bt.r2_delta_ci_low:.3f}, {bt.r2_delta_ci_high:.3f}], {counts}"
+        method = "BCa" if bt.ci_method == "bca" else "percentile"
+        ci = (
+            f"R2 delta {pct}% {method} CI [{bt.r2_delta_ci_low:.3f}, {bt.r2_delta_ci_high:.3f}], "
+            f"{counts}"
+        )
         verdict = self._dif_robustly_nonnegligible()
         if verdict is None:
             return [
@@ -225,13 +229,22 @@ class ReportCard:
             if verdict
             else "no robust DIF (CI reaches the negligible band)"
         )
-        return [
-            f"- Clustering-robust flag: {label} ({ci}).",
-            "  Caveat: the flag rests on a percentile CI bound compared to the "
-            f"Jodoin-Gierl {_JG_NEGLIGIBLE:.3f} boundary. The R2-change is bounded at 0, "
-            "where the percentile method is least accurate, so a verdict from a bound sitting "
-            "near the boundary is fragile; read the point estimate and CI, not the label alone.",
-        ]
+        if bt.ci_method == "bca":
+            caveat = (
+                "  Caveat: the flag compares a bias-corrected accelerated (BCa) CI bound to the "
+                f"Jodoin-Gierl {_JG_NEGLIGIBLE:.3f} boundary. BCa corrects the percentile bias, "
+                "but the bound is still an estimate; read the point estimate and CI alongside "
+                "the label."
+            )
+        else:
+            caveat = (
+                "  Caveat: the flag rests on a percentile CI bound compared to the "
+                f"Jodoin-Gierl {_JG_NEGLIGIBLE:.3f} boundary (BCa was undefined at this "
+                "0-bounded statistic). The percentile method is least accurate at the boundary, "
+                "so a verdict from a bound sitting near it is fragile; read the point estimate "
+                "and CI, not the label alone."
+            )
+        return [f"- Clustering-robust flag: {label} ({ci}).", caveat]
 
 
 def audit(

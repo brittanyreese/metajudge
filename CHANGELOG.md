@@ -7,10 +7,12 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Added
 
 - `IccResult` now carries McGraw & Wong (1996) exact F-based 95% confidence intervals for ICC(2,1) and ICC(2,k) (`icc1_ci_low/high`, `icck_ci_low/high`), matching pingouin's `ICC(A,1)`/`ICC(A,k)` bounds. The report card renders them, so the reliability pillar no longer ships a bare point estimate.
+- `cluster_bootstrap_dif` now reports bias-corrected and accelerated (BCa, Efron 1987) confidence intervals when they are computable and affordable, exposed via `ClusterBootstrapDif.ci_method` (`"bca"` or `"percentile"`). The acceleration comes from a leave-one-cluster-out jackknife; BCa is gated to samples where it both helps most and is cheap (jackknife no larger than the bootstrap), and falls back to the percentile interval otherwise. Validated against `scipy.stats.bootstrap(method="BCa")`.
+- `holm_adjust`: Holm-Bonferroni familywise-error correction for screening DIF across multiple stratum pairs, exported at the top level. Reproduces `statsmodels multipletests(method="holm")`.
 
 ### Changed
 
-- The clustering-robust DIF flag now carries a caveat that its verdict rests on a percentile CI bound compared to the Jodoin-Gierl boundary, where the (0-bounded) R²-change makes the percentile method least accurate; `ClusterBootstrapDif` documents the same limitation.
+- The clustering-robust DIF flag caveat now names the CI method: for BCa it notes the bias correction; for the percentile fallback it keeps the boundary-fragility warning (the 0-bounded R²-change makes the percentile method least accurate near the Jodoin-Gierl boundary). `ClusterBootstrapDif` documents both.
 - `logistic_dif` documents two scope limitations: the conditioner enters linearly (residual confounding under a nonlinear quality-response relationship) and no familywise correction is applied across multiple stratum pairs.
 - `logistic_dif`'s unknown-stratum error now lists the available (stringified) levels and notes labels are matched as strings, so integer stratum labels no longer fail opaquely.
 - `Ratings.wide()` uses `DataFrame.pivot` (raises on duplicate item-rater cells) instead of `pivot_table` (silent mean), keeping the one-cell-per-pair invariant on every construction path.

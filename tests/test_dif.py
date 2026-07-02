@@ -13,6 +13,7 @@ reference wins and the literal is corrected.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Hashable
 
 import numpy as np
@@ -25,11 +26,13 @@ from metajudge.data import Ratings
 from metajudge.dif import (
     ClusterBootstrapDif,
     DifResult,
+    _bca_bounds,  # pyright: ignore[reportPrivateUsage]
     _classify_jodoin_gierl,  # pyright: ignore[reportPrivateUsage]
     _DifStats,  # pyright: ignore[reportPrivateUsage]
     _fit_proportional_odds,  # pyright: ignore[reportPrivateUsage]
     _lr_chi2,  # pyright: ignore[reportPrivateUsage]
     cluster_bootstrap_dif,
+    holm_adjust,
     logistic_dif,
 )
 
@@ -505,13 +508,26 @@ def test_cluster_bootstrap_drops_nonconverged_refits(monkeypatch: pytest.MonkeyP
                 po_violation=False,
             )
         bootstrap_calls += 1
+        if bootstrap_calls <= 3:
+            # Bootstrap phase (n_boot=3): the first refit does not converge and is dropped.
+            return _DifStats(
+                chi2_total=float(bootstrap_calls),
+                chi2_uniform=float("nan"),
+                chi2_nonuniform=float("nan"),
+                nagelkerke_r2_delta=0.01 * bootstrap_calls,
+                n_obs=_N_ITEMS * _N_RATERS,
+                converged=bootstrap_calls != 1,
+                po_violation=False,
+            )
+        # Jackknife phase (leave-one-cluster-out): converged constants; equal values give
+        # zero acceleration, and the boundary check drives BCa to the percentile fallback.
         return _DifStats(
-            chi2_total=float(bootstrap_calls),
+            chi2_total=2.5,
             chi2_uniform=float("nan"),
             chi2_nonuniform=float("nan"),
-            nagelkerke_r2_delta=0.01 * bootstrap_calls,
+            nagelkerke_r2_delta=0.02,
             n_obs=_N_ITEMS * _N_RATERS,
-            converged=bootstrap_calls != 1,
+            converged=True,
             po_violation=False,
         )
 
@@ -519,7 +535,7 @@ def test_cluster_bootstrap_drops_nonconverged_refits(monkeypatch: pytest.MonkeyP
     res = cluster_bootstrap_dif(
         ratings, focal="foc", reference="ref", conditioner=cond, n_boot=3, seed=0
     )
-    assert bootstrap_calls == 3
+    assert bootstrap_calls >= 3  # 3 bootstrap refits, plus the leave-one-cluster-out jackknife
     assert res.n_effective == 2
     assert res.chi2_total_ci_low > 1.0
 
@@ -588,8 +604,6 @@ def test_cluster_bootstrap_rest_score_path() -> None:
 
 
 def test_cluster_bootstrap_zero_boot_returns_nan_ci() -> None:
-    import math
-
     ratings, cond = _frozen()
     res = cluster_bootstrap_dif(ratings, focal="foc", reference="ref", conditioner=cond, n_boot=0)
     assert res.n_effective == 0
@@ -649,22 +663,23 @@ def test_cluster_bootstrap_invalid_ci_raises(bad: float) -> None:
 
 
 def test_cluster_bootstrap_bounds_are_stable() -> None:
-    # Characterization lock for the engine refactor: the per-resample DIF statistics are
-    # invariant to observation order and do not need the ll2 (uniform/nonuniform) fit, so
-    # bypassing the DataFrame round-trip and dropping that fit leaves these frozen-fixture
-    # bounds unchanged. The tolerance is the engine's optimizer-noise scale (_LR_NOISE_TOL,
-    # 1e-6), not floating-point exactness: a BFGS-derived statistic is not bitwise
-    # reproducible across platforms/BLAS, but a real refactor regression would move these by
+    # Characterization lock for the engine: the per-resample DIF statistics are invariant to
+    # observation order and do not need the ll2 (uniform/nonuniform) fit. The frozen fixture
+    # has DIF away from the 0 boundary, so the CI is the bias-corrected accelerated (BCa)
+    # interval (validated against scipy in test_bca_bounds_match_scipy_oracle). The tolerance
+    # is the engine's optimizer-noise scale (_LR_NOISE_TOL, 1e-6): a BFGS-derived statistic is
+    # not bitwise reproducible across platforms/BLAS, but a real regression moves these by
     # orders of magnitude, not parts per million.
     ratings, cond = _frozen()
     res = cluster_bootstrap_dif(
         ratings, focal="foc", reference="ref", conditioner=cond, n_boot=200, seed=0
     )
     assert res.n_effective == 200
-    assert res.r2_delta_ci_low == pytest.approx(0.03371076982262634, abs=1e-6)
-    assert res.r2_delta_ci_high == pytest.approx(0.1485152604131145, abs=1e-6)
-    assert res.chi2_total_ci_low == pytest.approx(9.028882920867858, abs=1e-6)
-    assert res.chi2_total_ci_high == pytest.approx(40.180517271142136, abs=1e-6)
+    assert res.ci_method == "bca"
+    assert res.r2_delta_ci_low == pytest.approx(0.031220102947280143, abs=1e-6)
+    assert res.r2_delta_ci_high == pytest.approx(0.13546044457360618, abs=1e-6)
+    assert res.chi2_total_ci_low == pytest.approx(8.096802268528158, abs=1e-6)
+    assert res.chi2_total_ci_high == pytest.approx(35.86937198633991, abs=1e-6)
 
 
 def test_logistic_dif_po_violation_responds_to_alpha() -> None:
@@ -751,8 +766,6 @@ def test_dif_stats_brant_runtime_error_sets_po_violation_false(
 
 def test_bootstrap_value_error_resamples_give_nan_ci(monkeypatch: pytest.MonkeyPatch) -> None:
     """ValueError inside the bootstrap try-block is caught; all resamples drop → NaN CI."""
-    import math
-
     original = dif_module._dif_stats  # pyright: ignore[reportPrivateUsage]
 
     def _fail_in_bootstrap(*args: object, want_split: bool, **kwargs: object) -> object:
@@ -768,3 +781,95 @@ def test_bootstrap_value_error_resamples_give_nan_ci(monkeypatch: pytest.MonkeyP
     assert res.n_effective == 0
     assert math.isnan(res.r2_delta_ci_low)
     assert math.isnan(res.chi2_total_ci_low)
+
+
+def test_bca_bounds_match_scipy_oracle() -> None:
+    # Oracle: scipy.stats.bootstrap(method="BCa"). Feed _bca_bounds the exact replicate
+    # distribution scipy drew and the leave-one-out jackknife; the BCa math (bias correction
+    # z0 + jackknife acceleration + adjusted percentiles) must reproduce scipy's interval.
+    from scipy.stats import bootstrap  # type: ignore[import-untyped]
+
+    rng = np.random.default_rng(0)
+    data: NDArray[np.float64] = rng.gamma(2.0, 1.0, size=40)  # skewed, so BCa != percentile
+    # random_state via **kwargs: the installed scipy accepts it at runtime, but its type stub
+    # only names the newer `rng` alias, so a literal kwarg trips reportCallIssue.
+    boot_kwargs = {
+        "method": "BCa",
+        "n_resamples": 3000,
+        "random_state": 7,
+        "confidence_level": 0.90,
+    }
+    res = bootstrap((data,), np.mean, **boot_kwargs)  # type: ignore[reportUnknownVariableType]
+    theta_hat = float(data.mean())
+    jack: NDArray[np.float64] = np.array(  # type: ignore[reportUnknownMemberType]
+        [float(np.delete(data, i).mean()) for i in range(int(data.size))]  # type: ignore[reportUnknownArgumentType]
+    )
+    boot_dist: NDArray[np.float64] = np.asarray(res.bootstrap_distribution, dtype=float)  # type: ignore[reportUnknownMemberType, reportUnknownArgumentType]
+    lo, hi, ok = _bca_bounds(boot_dist, theta_hat, jack, 5.0, 95.0)
+    assert ok is True
+    assert lo == pytest.approx(float(res.confidence_interval.low), abs=1e-9)  # type: ignore[reportUnknownMemberType, reportUnknownArgumentType]
+    assert hi == pytest.approx(float(res.confidence_interval.high), abs=1e-9)  # type: ignore[reportUnknownMemberType, reportUnknownArgumentType]
+
+
+def test_bca_bounds_reduce_to_percentile_without_bias_or_acceleration() -> None:
+    # Exactly half the replicates below theta_hat (z0=0) and constant jackknife (a=0) =>
+    # BCa collapses to the plain percentile interval.
+    half: NDArray[np.float64] = np.linspace(0.001, 1.0, 500)
+    boot: NDArray[np.float64] = np.concatenate([-half, half])  # type: ignore[reportUnknownMemberType]
+    jack: NDArray[np.float64] = np.zeros(10)
+    lo, hi, ok = _bca_bounds(boot, 0.0, jack, 2.5, 97.5)
+    assert ok is True
+    pctl: NDArray[np.float64] = np.percentile(boot, [2.5, 97.5])  # type: ignore[reportUnknownMemberType]
+    assert lo == pytest.approx(float(pctl[0]), abs=1e-9)
+    assert hi == pytest.approx(float(pctl[1]), abs=1e-9)
+
+
+def test_bca_bounds_flag_degenerate_boundary_statistic() -> None:
+    # All replicates below theta_hat (a 0-bounded statistic piled at the boundary) makes the
+    # bias correction infinite; _bca_bounds signals ok=False so the caller uses percentile.
+    boot: NDArray[np.float64] = np.zeros(500)
+    jack: NDArray[np.float64] = np.zeros(10)
+    lo, hi, ok = _bca_bounds(boot, 0.5, jack, 2.5, 97.5)
+    assert ok is False
+    assert math.isnan(lo) and math.isnan(hi)
+
+
+def test_cluster_bootstrap_reports_ci_method() -> None:
+    ratings, cond = _frozen()
+    res = cluster_bootstrap_dif(
+        ratings, focal="foc", reference="ref", conditioner=cond, n_boot=200, seed=0
+    )
+    assert res.ci_method in {"bca", "percentile"}
+    assert res.r2_delta_ci_low <= res.r2_delta_ci_high
+
+
+def test_cluster_bootstrap_skips_bca_when_panel_exceeds_n_boot() -> None:
+    # 24 item clusters with n_boot=10: the leave-one-cluster-out jackknife would add more
+    # fits than the bootstrap, so BCa is gated off and the percentile CI is used.
+    ratings, cond = _frozen()
+    res = cluster_bootstrap_dif(
+        ratings, focal="foc", reference="ref", conditioner=cond, n_boot=10, seed=0
+    )
+    assert res.ci_method == "percentile"
+
+
+def test_holm_adjust_matches_statsmodels_oracle() -> None:
+    mt = pytest.importorskip("statsmodels.stats.multitest")
+    pvals = [0.001, 0.013, 0.021, 0.04, 0.6, 0.99]
+    expected = list(mt.multipletests(pvals, method="holm")[1])
+    got = holm_adjust(pvals)
+    assert got == pytest.approx(expected, abs=1e-12)
+
+
+def test_holm_adjust_unsorted_input_matches_statsmodels() -> None:
+    mt = pytest.importorskip("statsmodels.stats.multitest")
+    pvals = [0.04, 0.001, 0.6, 0.021, 0.99, 0.013]  # deliberately unordered
+    expected = list(mt.multipletests(pvals, method="holm")[1])
+    assert holm_adjust(pvals) == pytest.approx(expected, abs=1e-12)
+
+
+def test_holm_adjust_edge_cases() -> None:
+    assert holm_adjust([]) == []
+    assert holm_adjust([0.3]) == pytest.approx([0.3])
+    # Every adjusted p is capped at 1.0.
+    assert all(p <= 1.0 for p in holm_adjust([0.9, 0.95, 0.99]))
