@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Operating-characteristics study for the DIF pillar (`docs/sim-operating-characteristics.md`, raw draws in `sim/results/`, runner `scripts/run_oc_study.py`): baseline Type-I/power, cluster-stress cells showing the analytic test does not inflate in this crossed design, PO-violation robustness, a power curve, an unbalanced-groups check, and the conditioner-overlap calibration curve. Simulation harness gains per-replication overlap diagnostics and unbalanced-group support (`DgpParams.n_items_focal`).
+- Weekly `Rigor` CI workflow: runs the full-precision slow tests and the live R `MASS::polr` oracle refit that the fast PR suite deliberately skips. Releases (`publish.yml`) now gate on the same combination.
+- The README shows the committed live Gemini judge-panel report card inline next to the SummEval card.
+
 - `IccResult` now carries McGraw & Wong (1996) exact F-based 95% confidence intervals for ICC(2,1) and ICC(2,k) (`icc1_ci_low/high`, `icck_ci_low/high`), matching pingouin's `ICC(A,1)`/`ICC(A,k)` bounds. The report card renders them, so the reliability pillar no longer ships a bare point estimate.
 - `cluster_bootstrap_dif` now reports bias-corrected and accelerated (BCa, Efron 1987) confidence intervals when they are computable and affordable, exposed via `ClusterBootstrapDif.ci_method` (`"bca"` or `"percentile"`). The acceleration comes from a leave-one-cluster-out jackknife; BCa is gated to samples where it both helps most and is cheap (jackknife no larger than the bootstrap), and falls back to the percentile interval otherwise. Validated against `scipy.stats.bootstrap(method="BCa")`.
 - `holm_adjust`: Holm-Bonferroni familywise-error correction for screening DIF across multiple stratum pairs, exported at the top level. Reproduces `statsmodels multipletests(method="holm")`.
@@ -17,6 +21,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
+- `conditioner_overlap_weak` recalibrated: the threshold moved from the 0.7 convention to a measured 0.2 (false Jodoin-Gierl B/C rate under a true null: 0.5% at |corr| <= 0.2, 17% in (0.2, 0.4], above 50% past 0.4; the 0.7 flag almost never fired even in cells with a 100% false-DIF rate). Runs observing |corr| in [0.2, 0.7) now warn where they previously read as clean, and the report-card warning cites the calibrated band. See `docs/decisions/2026-07-02-e07-overlap-threshold-calibration.md`.
 - The clustering-robust DIF flag caveat now names the CI method: for BCa it notes the bias correction; for the percentile fallback it keeps the boundary-fragility warning (the 0-bounded R²-change makes the percentile method least accurate near the Jodoin-Gierl boundary). `ClusterBootstrapDif` documents both.
 - `logistic_dif` documents two scope limitations: the conditioner enters linearly (residual confounding under a nonlinear quality-response relationship) and no familywise correction is applied across multiple stratum pairs.
 - `logistic_dif`'s unknown-stratum error now lists the available (stringified) levels and notes labels are matched as strings, so integer stratum labels no longer fail opaquely.

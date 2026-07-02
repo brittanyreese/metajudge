@@ -44,7 +44,7 @@ Output:
 - ICC(2,1): 0.711 [95% CI 0.418, 0.896]; ICC(2,k): 0.880 [95% CI 0.683, 0.963] (12 targets x 3 raters)
 
 ## DIF (panel-relative, rest-score conditioner)
-> WARNING: residual-impurity regime. The conditioner is strongly (but not perfectly) correlated with the group (correlation 0.872, common support 0.167), so the effect size below may absorb a real between-strata quality gap as apparent DIF instead of screening it out.
+> WARNING: residual-impurity regime. The conditioner correlates with the group (correlation 0.872, common support 0.167) beyond the calibrated safe band (|corr| < 0.2), where the simulation study measured a materially elevated false B/C rate under no true DIF. The effect size below may absorb a real between-strata quality gap as apparent DIF instead of screening it out.
 
 > Note: the rest-score conditioner cannot see bias shared across the entire rater panel, so this is panel-relative DIF, not an instrument-level fairness clearance. Pass a valid independent external quality conditioner for a stronger instrument-level analysis.
 

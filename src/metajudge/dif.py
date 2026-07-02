@@ -43,8 +43,13 @@ _JG_LARGE = 0.070
 
 # Advisory band for conditioner/group overlap: at or above this |corr|, the conditioner
 # is weakly separated from group membership and the DIF match is worth flagging (though
-# still identifiable up to the > 0.999 refusal guard in _dif_stats).
-_OVERLAP_WEAK_CORR = 0.7
+# still identifiable up to the > 0.999 refusal guard in _dif_stats). Calibrated by the
+# S3 operating-characteristics study (docs/sim-operating-characteristics.md, seeds
+# pinned in sim/oc_study.py): under H0 the false B/C classification rate is 0.5% at
+# |corr| <= 0.2 and 17% in (0.2, 0.4], rising past 50% beyond 0.4. The original 0.7
+# convention essentially never fired (observed |corr| rarely reaches 0.7 even at
+# extreme strata separation); see docs/decisions/2026-07-02-e07-overlap-threshold-calibration.md.
+_OVERLAP_WEAK_CORR = 0.2
 
 
 # ── Brant proportional-odds diagnostic (private; surfaced via DifResult.po_violation) ──

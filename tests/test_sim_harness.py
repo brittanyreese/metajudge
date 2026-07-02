@@ -17,6 +17,9 @@ _RESULT_COLS = [
     "dif_class",
     "brant_po_flag",
     "converged",
+    "conditioner_group_corr",
+    "conditioner_common_support",
+    "conditioner_overlap_weak",
 ]
 
 
@@ -108,6 +111,40 @@ def test_summarize_power_effect_and_po_rate() -> None:
     assert summary.reject_nonuniform_rate == 0.6
     assert math.isclose(summary.mean_r2_delta, float(np.mean(r2)))
     assert summary.po_flag_rate == 0.4
+
+
+def test_run_cell_records_overlap_diagnostics() -> None:
+    # The per-run conditioner/group overlap diagnostics from DifResult must land in the
+    # result frame so calibration studies can pool observed correlation against outcomes.
+    params = DgpParams(n_items_per_group=60, n_raters=3)
+    df = run_cell(params, n_reps=4, base_seed=0)
+    conv = df[df["converged"]]
+    assert len(conv) >= 3
+    corr = conv["conditioner_group_corr"]
+    assert ((corr >= -1.0) & (corr <= 1.0)).all()
+    support = conv["conditioner_common_support"]
+    assert ((support >= 0.0) & (support <= 1.0)).all()
+    assert df["conditioner_overlap_weak"].dtype == bool
+
+
+def test_rest_score_corr_rises_with_impact() -> None:
+    # Under the rest-score conditioner, strata separation (impact) drives the
+    # conditioner/group correlation: |corr| at mu_focal=-2 must exceed |corr| at 0.
+    no_impact = run_cell(
+        DgpParams(n_items_per_group=100, n_raters=3, mu_focal=0.0),
+        n_reps=5,
+        base_seed=7,
+        conditioner="rest_score",
+    )
+    big_impact = run_cell(
+        DgpParams(n_items_per_group=100, n_raters=3, mu_focal=-2.0),
+        n_reps=5,
+        base_seed=7,
+        conditioner="rest_score",
+    )
+    lo = no_impact[no_impact["converged"]]["conditioner_group_corr"].abs().mean()
+    hi = big_impact[big_impact["converged"]]["conditioner_group_corr"].abs().mean()
+    assert hi > lo + 0.3, f"|corr| did not rise with impact: {lo:.3f} -> {hi:.3f}"
 
 
 def test_run_cell_converges_and_brant_flag_is_bool() -> None:
