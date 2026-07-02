@@ -8,6 +8,7 @@ from collections.abc import Hashable, Mapping
 from dataclasses import dataclass
 from typing import Never
 
+from metajudge._constants import MIN_EFFECTIVE
 from metajudge.data import Ratings
 from metajudge.dif import (
     _JG_NEGLIGIBLE,  # pyright: ignore[reportPrivateUsage]  # one Jodoin-Gierl threshold, one source
@@ -22,6 +23,10 @@ from metajudge.reliability import (
     icc,
     krippendorff_alpha,
 )
+
+# Fraction of dropped bootstrap resamples below which the alpha CI is treated as fine: a
+# few degenerate resamples out of a full run is sampling noise, not degradation.
+_ALPHA_CI_DROP_TOLERANCE = 0.05
 
 
 @dataclass(frozen=True)
@@ -72,11 +77,25 @@ class ReportCard:
     def flags(self) -> Flags:
         return Flags(
             conditioner_is_external=self.dif.conditioner_is_external,
-            alpha_ci_degraded=(
-                self.alpha.n_effective < self.alpha.n_bootstrap or not self.alpha.ci_reliable
-            ),
+            alpha_ci_degraded=self._alpha_ci_degraded(),
             dif_robustly_nonnegligible=self._dif_robustly_nonnegligible(),
         )
+
+    def _alpha_ci_degraded(self) -> bool:
+        """Whether the alpha bootstrap CI is meaningfully degraded.
+
+        True when the CI is not reliable (< MIN_EFFECTIVE resamples survived) or a
+        non-trivial fraction of resamples was dropped. A handful of degenerate resamples out
+        of a full run is normal sampling noise, not degradation, so the flag ignores drops
+        below ``_ALPHA_CI_DROP_TOLERANCE``.
+        """
+        a = self.alpha
+        if not a.ci_reliable:
+            return True
+        if a.n_bootstrap <= 0:
+            return False
+        dropped_frac = (a.n_bootstrap - a.n_effective) / a.n_bootstrap
+        return dropped_frac > _ALPHA_CI_DROP_TOLERANCE
 
     def _dif_robustly_nonnegligible(self) -> bool | None:
         """Clustering-robust DIF verdict from the item-cluster bootstrap CI, or None.
@@ -105,7 +124,9 @@ class ReportCard:
             if dropped:
                 details.append(f"{dropped} degenerate resamples dropped")
             if not a.ci_reliable:
-                details.append("indicative only because fewer than 100 resamples survived")
+                details.append(
+                    f"indicative only because fewer than {MIN_EFFECTIVE} resamples survived"
+                )
             alpha_ci += f" ({'; '.join(details)})"
         if f.conditioner_is_external:
             dif_header = "## DIF (external conditioner)"

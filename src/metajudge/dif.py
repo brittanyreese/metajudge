@@ -28,6 +28,7 @@ from scipy.optimize import minimize  # type: ignore[import-untyped]
 from scipy.special import expit  # type: ignore[import-untyped]
 from scipy.stats import chi2  # type: ignore[import-untyped]
 
+from metajudge._constants import MIN_EFFECTIVE
 from metajudge.data import Ratings
 
 # Jodoin & Gierl (2001) Nagelkerke R-squared change thresholds.
@@ -573,14 +574,11 @@ def logistic_dif(
     )
 
 
-# Below this many surviving resamples the 2.5/97.5 percentile CI is too thin to trust;
-# callers should read ``ci_reliable`` (or ``n_effective``) rather than the bounds alone.
-_MIN_EFFECTIVE = 100
-
-# With fewer items per group the bootstrap draws from too small a space of distinct
-# resamples (n_items^n_items) for the percentile CI to be stable, even if n_effective
-# clears the convergence floor.  Five items gives 3125 distinct draws; below that the
-# CI should be treated as unstable.
+# With fewer items per group the item-cluster bootstrap draws from too small a space of
+# distinct resample compositions for the percentile CI to be stable, even if n_effective
+# clears the convergence floor. The number of distinct resamples (multisets) of n items is
+# C(2n-1, n): only 126 at n=5 and 35 at n=4 — sparse enough that the 2.5/97.5 percentiles
+# jump between a handful of discrete values. Below 5 the CI should be treated as unstable.
 _MIN_CLUSTER_SIZE = 5
 
 
@@ -612,11 +610,11 @@ class ClusterBootstrapDif:
     def ci_reliable(self) -> bool:
         """Whether enough resamples survived for a trustworthy percentile CI.
 
-        ``False`` when fewer than ``_MIN_EFFECTIVE`` (100) resamples cleared the engine's
+        ``False`` when fewer than ``MIN_EFFECTIVE`` resamples cleared the engine's
         identifiability guards: with so few draws the percentile bounds are noise dressed as
         precision, and the point estimate (``base``) is the honest summary.
         """
-        return self.n_effective >= _MIN_EFFECTIVE
+        return self.n_effective >= MIN_EFFECTIVE
 
 
 def cluster_bootstrap_dif(

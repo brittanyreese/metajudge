@@ -319,6 +319,31 @@ def test_markdown_omits_caveat_when_all_replicates_realized() -> None:
     assert "of 1000" not in md
 
 
+def _alpha(*, n_bootstrap: int, n_effective: int) -> AlphaResult:
+    return AlphaResult(
+        alpha=0.6,
+        ci_low=0.4,
+        ci_high=0.8,
+        level="nominal",
+        n_bootstrap=n_bootstrap,
+        n_effective=n_effective,
+    )
+
+
+def test_alpha_ci_not_degraded_when_drops_within_tolerance() -> None:
+    # 50/1000 dropped = exactly 5% (the boundary): the flag ignores it (strict >),
+    # so a handful of degenerate resamples is not read as a degraded CI.
+    card = _card_with_alpha(_alpha(n_bootstrap=1000, n_effective=950))
+    assert card.flags.alpha_ci_degraded is False
+    assert "of 1000" not in card.to_markdown()
+
+
+def test_alpha_ci_degraded_when_drops_exceed_tolerance() -> None:
+    # 51/1000 dropped > 5%: just over the boundary flips the flag on.
+    flags = _card_with_alpha(_alpha(n_bootstrap=1000, n_effective=949)).flags
+    assert flags.alpha_ci_degraded is True
+
+
 def test_report_warns_on_po_violation() -> None:
     from dataclasses import replace
 

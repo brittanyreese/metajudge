@@ -9,12 +9,10 @@ import krippendorff as kd  # type: ignore[import-untyped]
 import numpy as np
 from numpy.typing import NDArray
 
+from metajudge._constants import MIN_EFFECTIVE
 from metajudge.data import Ratings
 
 _LevelOfMeasurement = Literal["nominal", "ordinal", "interval", "ratio"]
-
-# ponytail: mirrors _MIN_EFFECTIVE in dif.py — keep in sync if threshold changes
-_MIN_EFFECTIVE = 100  # min surviving bootstrap resamples for a trustworthy percentile CI
 
 
 @dataclass(frozen=True)
@@ -40,12 +38,12 @@ class AlphaResult:
     def ci_reliable(self) -> bool:
         """Whether enough resamples were realized for a trustworthy percentile CI.
 
-        ``False`` when fewer than ``_MIN_EFFECTIVE`` (100) replicates survived, whether
+        ``False`` when fewer than ``MIN_EFFECTIVE`` replicates survived, whether
         because few were requested or many were dropped as degenerate: the bounds are then
         indicative only and the point estimate ``alpha`` is the honest summary. Mirrors
         :attr:`metajudge.dif.ClusterBootstrapDif.ci_reliable`.
         """
-        return self.n_effective >= _MIN_EFFECTIVE
+        return self.n_effective >= MIN_EFFECTIVE
 
 
 def krippendorff_alpha(
