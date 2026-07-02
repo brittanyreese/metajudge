@@ -233,6 +233,37 @@ def test_markdown_warns_analytic_dif_pvalues_are_anti_conservative() -> None:
     assert md.index("anti-conservative") < md.index("Uniform DIF")
 
 
+def test_markdown_weak_overlap_shows_residual_impurity_warning_before_effect_size() -> None:
+    # When the conditioner-group overlap is weak, the blanket nested-strata caveat is
+    # replaced by a run-specific warning naming the residual-impurity regime and the
+    # actual correlation / common-support numbers, still above the DIF statistics.
+    from dataclasses import replace
+
+    card = _card(converged=True)
+    weak = replace(
+        card,
+        dif=replace(
+            card.dif,
+            conditioner_overlap_weak=True,
+            conditioner_group_corr=0.82,
+            conditioner_common_support=0.35,
+        ),
+    )
+    md = weak.to_markdown()
+    assert "residual-impurity regime" in md
+    assert "0.820" in md
+    assert "0.350" in md
+    assert md.index("residual-impurity regime") < md.index("Effect size")
+
+
+def test_markdown_strong_overlap_keeps_blanket_nested_strata_caveat() -> None:
+    # Good overlap: keep the standing blanket caveat and never show the run-specific
+    # residual-impurity warning.
+    md = _card(converged=True).to_markdown()
+    assert "strata nest items" in md
+    assert "residual-impurity regime" not in md
+
+
 def test_audit_default_has_no_bootstrap() -> None:
     card = audit(_ratings(), focal="foc", reference="ref", level="ordinal", seed=1)
     assert card.dif_bootstrap is None
