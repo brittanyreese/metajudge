@@ -61,6 +61,7 @@ def _card(*, converged: bool, conditioner_source: str = "rest_score") -> ReportC
         po_violation=False,
         conditioner_group_corr=0.0,
         conditioner_common_support=1.0,
+        conditioner_overlap_weak=False,
     )
     return ReportCard(alpha=alpha, icc=ic, dif=dif)
 
@@ -93,6 +94,7 @@ def _card_with_alpha(alpha: AlphaResult) -> ReportCard:
         po_violation=False,
         conditioner_group_corr=0.0,
         conditioner_common_support=1.0,
+        conditioner_overlap_weak=False,
     )
     return ReportCard(alpha=alpha, icc=icc_result, dif=dif)
 

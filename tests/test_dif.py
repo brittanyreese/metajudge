@@ -450,6 +450,77 @@ def test_collinear_conditioner_raises() -> None:
         logistic_dif(_make(ref, foc), focal="foc", reference="ref")
 
 
+def _corr_band_ratings(
+    ref_cond: list[float], foc_cond: list[float]
+) -> tuple[Ratings, dict[Hashable, float]]:
+    """5 reference + 5 focal items with varied (multi-category) scores and the given
+    per-item external conditioner values, so ``conditioner_group_corr`` is driven purely
+    by ``ref_cond``/``foc_cond`` (5 items, 3 raters each, matching ``_partial_overlap_ratings``)."""
+    ref = [[1, 2, 2], [3, 3, 4], [5, 4, 5], [2, 1, 2], [4, 5, 4]]
+    foc = [[3, 2, 3], [4, 3, 4], [2, 1, 2], [5, 4, 5], [1, 2, 1]]
+    ratings = _make(ref, foc)
+    conditioner: dict[Hashable, float] = {
+        **{f"ref{i}": v for i, v in enumerate(ref_cond)},
+        **{f"foc{i}": v for i, v in enumerate(foc_cond)},
+    }
+    return ratings, conditioner
+
+
+def _expected_corr(ref_cond: list[float], foc_cond: list[float], n_raters: int = 3) -> float:
+    """Independently rebuild the per-row conditioner/group vectors and correlate them."""
+    ref_rows: NDArray[np.float64] = np.repeat(np.array(ref_cond, dtype=float), n_raters)  # type: ignore[reportUnknownMemberType]
+    foc_rows: NDArray[np.float64] = np.repeat(np.array(foc_cond, dtype=float), n_raters)  # type: ignore[reportUnknownMemberType]
+    cond: NDArray[np.float64] = np.concatenate([ref_rows, foc_rows])  # type: ignore[reportUnknownMemberType]
+    group: NDArray[np.float64] = np.concatenate(  # type: ignore[reportUnknownMemberType]
+        [np.zeros_like(ref_rows), np.ones_like(foc_rows)]
+    )
+    z = (cond - cond.mean()) / cond.std(ddof=0)
+    return float(np.corrcoef(z, group)[0, 1])  # type: ignore[reportUnknownMemberType]
+
+
+def test_conditioner_overlap_weak_true_in_weak_band() -> None:
+    # Focal conditioner values sit mostly above reference, with overlap at 5.
+    ref_cond, foc_cond = [1.0, 2.0, 3.0, 4.0, 5.0], [5.0, 6.0, 7.0, 8.0, 9.0]
+    expected = _expected_corr(ref_cond, foc_cond)
+    assert 0.7 <= expected < 0.999
+    ratings, conditioner = _corr_band_ratings(ref_cond, foc_cond)
+    res = logistic_dif(ratings, focal="foc", reference="ref", conditioner=conditioner)
+    assert res.conditioner_group_corr == pytest.approx(expected, abs=1e-9)
+    assert res.conditioner_overlap_weak is True
+
+
+def test_conditioner_overlap_weak_false_below_band() -> None:
+    # Heavily overlapping conditioner distributions across groups.
+    ref_cond, foc_cond = [1.0, 2.0, 3.0, 4.0, 5.0], [2.0, 3.0, 4.0, 5.0, 6.0]
+    expected = _expected_corr(ref_cond, foc_cond)
+    assert expected < 0.7
+    ratings, conditioner = _corr_band_ratings(ref_cond, foc_cond)
+    res = logistic_dif(ratings, focal="foc", reference="ref", conditioner=conditioner)
+    assert res.conditioner_group_corr == pytest.approx(expected, abs=1e-9)
+    assert res.conditioner_overlap_weak is False
+
+
+def test_conditioner_overlap_weak_true_near_999_boundary_not_refused() -> None:
+    # Strong separation but still identifiable (|corr| < 0.999): the engine must not
+    # raise, and the advisory flag must still fire since 0.999 is an inclusive bound.
+    ref_cond, foc_cond = [0.0, 1.0, 2.0, 3.0, 4.0], [40.0, 41.0, 42.0, 43.0, 44.0]
+    expected = _expected_corr(ref_cond, foc_cond)
+    assert 0.7 <= expected < 0.999
+    ratings, conditioner = _corr_band_ratings(ref_cond, foc_cond)
+    res = logistic_dif(ratings, focal="foc", reference="ref", conditioner=conditioner)
+    assert res.conditioner_group_corr == pytest.approx(expected, abs=1e-9)
+    assert res.conditioner_overlap_weak is True
+
+
+def test_conditioner_overlap_weak_raises_above_999_threshold() -> None:
+    # Mirrors test_collinear_conditioner_raises: |corr| > 0.999 is still refused by the
+    # existing identifiability guard, unchanged by this flag.
+    ref = [[5, 5, 5], [5, 5, 5], [5, 5, 5]]
+    foc = [[1, 1, 1], [1, 1, 1], [1, 1, 1]]
+    with pytest.raises(ValueError, match="collinear"):
+        logistic_dif(_make(ref, foc), focal="foc", reference="ref")
+
+
 def test_constant_conditioner_raises() -> None:
     ratings, conditioner = _frozen()
     flat: dict[Hashable, float] = {item: 1.0 for item in conditioner}
