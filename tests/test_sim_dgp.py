@@ -6,7 +6,7 @@ import pytest
 from numpy.typing import NDArray
 from sim.dgp import FOCAL, REFERENCE, DgpParams, SimSample, simulate
 
-from metajudge import brant_test
+from metajudge.dif import _brant_test  # type: ignore[reportPrivateUsage]
 
 
 def _analytic_category_probs(thresholds: tuple[float, ...]) -> np.ndarray:  # type: ignore[type-arg]
@@ -104,7 +104,7 @@ def test_po_holds_cell_does_not_trip_brant() -> None:
     params = DgpParams(n_items_per_group=800, n_raters=3, trait_slope=1.0, rater_sd=0.0)
     sample = simulate(params, seed=3)
     endog, exog = _endog_exog(sample)
-    result = brant_test(endog, exog, names=["trait"])
+    result = _brant_test(endog, exog, names=["trait"])
     assert result.omnibus_p > 0.01  # proportional odds holds by construction
 
 
@@ -115,7 +115,7 @@ def test_po_violation_cell_trips_brant() -> None:
     )
     sample = simulate(params, seed=3)
     endog, exog = _endog_exog(sample)
-    result = brant_test(endog, exog, names=["trait"])
+    result = _brant_test(endog, exog, names=["trait"])
     assert result.omnibus_p < 1e-3  # strict large-N threshold (synthesis section 3)
 
 

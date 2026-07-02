@@ -1,0 +1,21 @@
+# metajudge: LLM judge panel audit
+_LIVE LLM JUDGE PANEL (gemini) -- gemini-2.5-flash, gemini-2.5-flash-lite, gemini-3.5-flash_
+Judges: 3 | Items: 16 (extractive vs abstractive) | Score: coherence 1-5
+
+# metajudge report card
+
+## Reliability
+- Krippendorff's alpha (ordinal): 0.993 [95% CI 0.960, 1.000] (CI from 989 of 1000 bootstrap resamples; 11 degenerate resamples dropped)
+- ICC(2,1): 0.991; ICC(2,k): 0.997 (16 targets x 3 raters)
+
+## DIF (panel-relative, rest-score conditioner)
+> Note: the rest-score conditioner cannot see bias shared across the entire rater panel, so this is panel-relative DIF, not an instrument-level fairness clearance. Pass a valid independent external quality conditioner for a stronger instrument-level analysis.
+
+- abstractive vs extractive (conditioner: rest_score, n=48)
+- Uniform DIF: chi2(1)=0.03, p=0.8654
+- Nonuniform DIF: chi2(1)=0.00, p=1.0000
+- Effect size (Nagelkerke R2 delta): 0.000 (Jodoin-Gierl class A)
+
+## Cluster-robust DIF check (abstractive vs extractive)
+- Nagelkerke R2 delta: 0.000 [95% cluster CI 0.000, 0.006]
+- CI reliable: True (n_effective=178 of 200)

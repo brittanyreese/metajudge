@@ -19,8 +19,8 @@ def _long() -> pd.DataFrame:
 
 def test_from_long_builds_matrix() -> None:
     r = Ratings.from_long(_long(), item="item", rater="rater", score="score")
-    assert r.n_items == 2
-    assert r.n_raters == 2
+    assert len(r.items) == 2
+    assert len(r.raters) == 2
     m = r.coder_unit_matrix()
     assert m.shape == (2, 2)
     # rows = raters sorted (r1, r2); cols = items sorted (i1, i2)
@@ -50,3 +50,49 @@ def test_inconsistent_stratum_per_item_raises() -> None:
     df.loc[1, "group"] = "b"  # i1 now has two stratum labels
     with pytest.raises(ValueError, match="one stratum"):
         Ratings.from_long(df, item="item", rater="rater", score="score", stratum="group")
+
+
+def test_from_long_missing_column_raises() -> None:
+    df = _long()
+    with pytest.raises(ValueError, match="columns not found"):
+        Ratings.from_long(df, item="item", rater="rater", score="nonexistent")
+
+
+def test_conflicting_stratum_labels_raise() -> None:
+    # Same (item, rater) pair appears twice with DIFFERENT stratum values.
+    df = pd.DataFrame(
+        {"item": ["x", "x"], "rater": ["A", "A"], "score": [3, 4], "stratum": ["S1", "S2"]}
+    )
+    with pytest.raises(ValueError, match="conflicting stratum labels"):
+        Ratings.from_long(df, item="item", rater="rater", score="score", stratum="stratum")
+
+
+def test_duplicate_item_rater_cells_raise() -> None:
+    df = pd.concat([_long(), _long().iloc[[0]]], ignore_index=True)
+    with pytest.raises(ValueError, match="duplicate item-rater"):
+        Ratings.from_long(df, item="item", rater="rater", score="score", stratum="group")
+
+
+def test_missing_stratum_values_raise() -> None:
+    df = _long()
+    df.loc[0, "group"] = None
+    with pytest.raises(ValueError, match="missing stratum"):
+        Ratings.from_long(df, item="item", rater="rater", score="score", stratum="group")
+
+
+def test_from_eval_instruments_missing_stratum_mapping_raises() -> None:
+    frame = pd.DataFrame({"quality": [1, 2]}, index=["i1", "i2"])
+    with pytest.raises(ValueError, match="missing stratum"):
+        Ratings.from_eval_instruments({"judge": frame}, criterion="quality", stratum={"i1": "a"})
+
+
+def test_n_items_removed_raises_with_migration_hint() -> None:
+    r = Ratings.from_long(_long(), item="item", rater="rater", score="score")
+    with pytest.raises(AttributeError, match=r"len\(ratings\.items\)"):
+        _ = r.n_items  # type: ignore[attr-defined]
+
+
+def test_n_raters_removed_raises_with_migration_hint() -> None:
+    r = Ratings.from_long(_long(), item="item", rater="rater", score="score")
+    with pytest.raises(AttributeError, match=r"len\(ratings\.raters\)"):
+        _ = r.n_raters  # type: ignore[attr-defined]

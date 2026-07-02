@@ -10,8 +10,8 @@ def test_load_demo_returns_ratings() -> None:
 
 def test_load_demo_shape() -> None:
     r = load_demo()
-    assert r.n_items == 1600
-    assert r.n_raters == 3
+    assert len(r.items) == 1600
+    assert len(r.raters) == 3
     scores = r.wide().to_numpy()
     assert int(scores.min()) >= 1
     assert int(scores.max()) <= 5
