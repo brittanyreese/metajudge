@@ -26,6 +26,7 @@ from metajudge.data import Ratings
 from metajudge.dif import (
     ClusterBootstrapDif,
     DifResult,
+    DifSweep,
     _bca_bounds,  # pyright: ignore[reportPrivateUsage]
     _classify_jodoin_gierl,  # pyright: ignore[reportPrivateUsage]
     _DifStats,  # pyright: ignore[reportPrivateUsage]
@@ -34,6 +35,7 @@ from metajudge.dif import (
     cluster_bootstrap_dif,
     holm_adjust,
     logistic_dif,
+    sweep,
 )
 
 # --- frozen DIF-bearing fixture (see scratch gen_olr_oracle.py, seed 20260622) ---
@@ -873,3 +875,114 @@ def test_holm_adjust_edge_cases() -> None:
     assert holm_adjust([0.3]) == pytest.approx([0.3])
     # Every adjusted p is capped at 1.0.
     assert all(p <= 1.0 for p in holm_adjust([0.9, 0.95, 0.99]))
+
+
+# --- multi-stratum sweep ---------------------------------------------------
+
+
+def _three_stratum() -> tuple[Ratings, dict[Hashable, float]]:
+    """Three strata (A/B/C), 9 items each, 4 raters, with a varying external conditioner.
+
+    Group B carries a uniform downward shift so at least one pair shows DIF and the Holm
+    family spans significant and non-significant p-values.
+    """
+    rng = np.random.default_rng(20260701)
+    rows: list[dict[str, object]] = []
+    conditioner: dict[Hashable, float] = {}
+    shifts = {"A": 0.0, "B": -1.4, "C": 0.05}
+    for group, shift in shifts.items():
+        for i in range(9):
+            item = f"{group}{i:02d}"
+            quality = float(rng.normal())
+            conditioner[item] = quality
+            latent = quality + shift
+            for r in range(4):
+                score = min(5, max(1, round(3.0 + latent + float(rng.normal(scale=0.6)))))
+                rows.append({"item": item, "rater": f"rt{r}", "score": score, "group": group})
+    df = pd.DataFrame(rows)
+    ratings = Ratings.from_long(df, item="item", rater="rater", score="score", stratum="group")
+    return ratings, conditioner
+
+
+def test_sweep_holm_matches_statsmodels_oracle() -> None:
+    mt = pytest.importorskip("statsmodels.stats.multitest")
+    ratings, cond = _three_stratum()
+    pairs = [("B", "A"), ("C", "A"), ("B", "C")]
+    result = sweep(ratings, pairs=pairs, conditioner=cond)
+    assert isinstance(result, DifSweep)
+
+    raw_total = [r.p_total for r in result.results]
+    raw_uniform = [r.p_uniform for r in result.results]
+    raw_nonuniform = [r.p_nonuniform for r in result.results]
+    assert result.p_total_holm == pytest.approx(
+        list(mt.multipletests(raw_total, method="holm")[1]), abs=1e-12
+    )
+    assert result.p_uniform_holm == pytest.approx(
+        list(mt.multipletests(raw_uniform, method="holm")[1]), abs=1e-12
+    )
+    assert result.p_nonuniform_holm == pytest.approx(
+        list(mt.multipletests(raw_nonuniform, method="holm")[1]), abs=1e-12
+    )
+
+
+def test_sweep_results_match_individual_logistic_dif() -> None:
+    ratings, cond = _three_stratum()
+    pairs = [("B", "A"), ("C", "A")]
+    result = sweep(ratings, pairs=pairs, conditioner=cond)
+    assert result.pairs == pairs
+    for (focal, reference), res in zip(pairs, result.results, strict=True):
+        solo = logistic_dif(ratings, focal=focal, reference=reference, conditioner=cond)
+        assert res.focal_level == focal
+        assert res.reference_level == reference
+        assert res.chi2_total == pytest.approx(solo.chi2_total, abs=1e-9)
+        assert res.p_total == pytest.approx(solo.p_total, abs=1e-12)
+
+
+def test_sweep_adjusted_p_never_below_raw() -> None:
+    ratings, cond = _three_stratum()
+    result = sweep(ratings, pairs=[("B", "A"), ("C", "A"), ("B", "C")], conditioner=cond)
+    for raw, adj in zip((r.p_total for r in result.results), result.p_total_holm, strict=True):
+        assert adj >= raw - 1e-12
+
+
+def test_sweep_requires_at_least_one_pair() -> None:
+    ratings, cond = _three_stratum()
+    with pytest.raises(ValueError, match="at least one"):
+        sweep(ratings, pairs=[], conditioner=cond)
+
+
+def _patch_brant_p(monkeypatch: pytest.MonkeyPatch, p: float) -> None:
+    """Force the Brant PO test to return a fixed omnibus p so po_alpha can be straddled."""
+    from metajudge.dif import _BrantResult  # pyright: ignore[reportPrivateUsage]
+
+    def fake(*_args: object, **_kwargs: object) -> _BrantResult:
+        return _BrantResult(
+            omnibus_chi2=1.0, omnibus_df=1, omnibus_p=p, per_predictor={}, converged=True
+        )
+
+    monkeypatch.setattr("metajudge.dif._brant_test", fake)
+
+
+def test_audit_forwards_po_alpha(monkeypatch: pytest.MonkeyPatch) -> None:
+    from metajudge.report import audit
+
+    ratings, cond = _three_stratum()
+    _patch_brant_p(monkeypatch, 0.5)
+    # po_violation is (brant.converged and brant.omnibus_p < po_alpha); 0.5 straddles 0.4/0.6.
+    clear = audit(ratings, focal="B", reference="A", conditioner=cond, po_alpha=0.4)
+    tripped = audit(ratings, focal="B", reference="A", conditioner=cond, po_alpha=0.6)
+    assert clear.dif.po_violation is False
+    assert tripped.dif.po_violation is True
+
+
+def test_cluster_bootstrap_forwards_po_alpha(monkeypatch: pytest.MonkeyPatch) -> None:
+    ratings, cond = _three_stratum()
+    _patch_brant_p(monkeypatch, 0.5)
+    tripped = cluster_bootstrap_dif(
+        ratings, focal="B", reference="A", conditioner=cond, n_boot=5, po_alpha=0.6
+    )
+    clear = cluster_bootstrap_dif(
+        ratings, focal="B", reference="A", conditioner=cond, n_boot=5, po_alpha=0.4
+    )
+    assert tripped.base.po_violation is True
+    assert clear.base.po_violation is False

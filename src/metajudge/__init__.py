@@ -5,9 +5,11 @@ from metajudge.demo import load_demo
 from metajudge.dif import (
     ClusterBootstrapDif,
     DifResult,
+    DifSweep,
     cluster_bootstrap_dif,
     holm_adjust,
     logistic_dif,
+    sweep,
 )
 from metajudge.reliability import AlphaResult, IccResult, icc, krippendorff_alpha
 from metajudge.report import Flags, ReportCard, audit
@@ -18,6 +20,7 @@ __all__ = [
     "AlphaResult",
     "ClusterBootstrapDif",
     "DifResult",
+    "DifSweep",
     "Flags",
     "IccResult",
     "Ratings",
@@ -30,4 +33,5 @@ __all__ = [
     "krippendorff_alpha",
     "load_demo",
     "logistic_dif",
+    "sweep",
 ]
