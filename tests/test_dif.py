@@ -29,6 +29,7 @@ from metajudge.dif import (
     DifSweep,
     _bca_bounds,  # pyright: ignore[reportPrivateUsage]
     _classify_jodoin_gierl,  # pyright: ignore[reportPrivateUsage]
+    _common_support,  # pyright: ignore[reportPrivateUsage]
     _DifStats,  # pyright: ignore[reportPrivateUsage]
     _fit_proportional_odds,  # pyright: ignore[reportPrivateUsage]
     _lr_chi2,  # pyright: ignore[reportPrivateUsage]
@@ -1005,3 +1006,109 @@ def test_cluster_bootstrap_forwards_po_alpha(monkeypatch: pytest.MonkeyPatch) ->
     )
     assert tripped.base.po_violation is True
     assert clear.base.po_violation is False
+
+
+# --- conditioner_common_support: item-level overlap diagnostic ---
+#
+# Definition: with F = focal per-item conditioner values and R = reference per-item
+# conditioner values, [lo, hi] = [max(min(F), min(R)), min(max(F), max(R))]; support is
+# the fraction of values (across both F and R) landing inside [lo, hi]. Disjoint ranges
+# (lo > hi) give 0.0; identical ranges give 1.0.
+
+
+def test_common_support_helper_partial_overlap_hand_computed() -> None:
+    # F = [3,4,5,6,7], R = [1,2,3,4,5]. Overlap [lo,hi] = [max(3,1), min(7,5)] = [3,5].
+    # F in range: 3,4,5 (3 values). R in range: 3,4,5 (3 values). (3+3)/(5+5) = 0.6.
+    focal_vals: NDArray[np.float64] = np.array([3.0, 4.0, 5.0, 6.0, 7.0])
+    reference_vals: NDArray[np.float64] = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+    assert _common_support(focal_vals, reference_vals) == pytest.approx(0.6, abs=1e-12)
+
+
+def test_common_support_helper_disjoint_is_zero() -> None:
+    # F = [10..14], R = [1..5]: lo = max(10,1) = 10, hi = min(14,5) = 5. lo > hi -> 0.0.
+    focal_vals: NDArray[np.float64] = np.array([10.0, 11.0, 12.0, 13.0, 14.0])
+    reference_vals: NDArray[np.float64] = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+    assert _common_support(focal_vals, reference_vals) == 0.0
+
+
+def test_common_support_helper_identical_range_is_one() -> None:
+    # F == R -> every value falls inside [lo, hi] = [min, max] -> 1.0.
+    focal_vals: NDArray[np.float64] = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+    reference_vals: NDArray[np.float64] = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+    assert _common_support(focal_vals, reference_vals) == pytest.approx(1.0, abs=1e-12)
+
+
+def test_common_support_helper_empty_side_is_nan() -> None:
+    empty: NDArray[np.float64] = np.array([], dtype=np.float64)
+    non_empty: NDArray[np.float64] = np.array([1.0, 2.0, 3.0])
+    assert math.isnan(_common_support(empty, non_empty))
+    assert math.isnan(_common_support(non_empty, empty))
+    assert math.isnan(_common_support(empty, empty))
+
+
+def _partial_overlap_ratings() -> tuple[Ratings, dict[Hashable, float]]:
+    """5 reference + 5 focal items, external per-item conditioner values that partly
+    overlap by construction: R = [1,2,3,4,5], F = [3,4,5,6,7]."""
+    ref = [[1, 2, 2], [3, 3, 4], [5, 4, 5], [2, 1, 2], [4, 5, 4]]
+    foc = [[3, 2, 3], [4, 3, 4], [2, 1, 2], [5, 4, 5], [1, 2, 1]]
+    ratings = _make(ref, foc)
+    conditioner: dict[Hashable, float] = {
+        "ref0": 1.0,
+        "ref1": 2.0,
+        "ref2": 3.0,
+        "ref3": 4.0,
+        "ref4": 5.0,
+        "foc0": 3.0,
+        "foc1": 4.0,
+        "foc2": 5.0,
+        "foc3": 6.0,
+        "foc4": 7.0,
+    }
+    return ratings, conditioner
+
+
+def test_conditioner_common_support_partial_overlap_hand_computed() -> None:
+    ratings, conditioner = _partial_overlap_ratings()
+    res = logistic_dif(ratings, focal="foc", reference="ref", conditioner=conditioner)
+    # Same hand computation as the helper test above: (3+3)/(5+5) = 0.6.
+    assert res.conditioner_common_support == pytest.approx(0.6, abs=1e-12)
+
+
+def test_conditioner_common_support_disjoint_ranges_is_zero() -> None:
+    ref = [[1, 2, 2], [3, 3, 4], [5, 4, 5], [2, 1, 2], [4, 5, 4]]
+    foc = [[3, 2, 3], [4, 3, 4], [2, 1, 2], [5, 4, 5], [1, 2, 1]]
+    ratings = _make(ref, foc)
+    conditioner: dict[Hashable, float] = {
+        "ref0": 1.0,
+        "ref1": 2.0,
+        "ref2": 3.0,
+        "ref3": 4.0,
+        "ref4": 5.0,
+        "foc0": 10.0,
+        "foc1": 11.0,
+        "foc2": 12.0,
+        "foc3": 13.0,
+        "foc4": 14.0,
+    }
+    res = logistic_dif(ratings, focal="foc", reference="ref", conditioner=conditioner)
+    assert res.conditioner_common_support == 0.0
+
+
+def test_conditioner_common_support_identical_range_is_one() -> None:
+    ref = [[1, 2, 2], [3, 3, 4], [5, 4, 5], [2, 1, 2], [4, 5, 4]]
+    foc = [[3, 2, 3], [4, 3, 4], [2, 1, 2], [5, 4, 5], [1, 2, 1]]
+    ratings = _make(ref, foc)
+    conditioner: dict[Hashable, float] = {
+        "ref0": 1.0,
+        "ref1": 2.0,
+        "ref2": 3.0,
+        "ref3": 4.0,
+        "ref4": 5.0,
+        "foc0": 1.0,
+        "foc1": 2.0,
+        "foc2": 3.0,
+        "foc3": 4.0,
+        "foc4": 5.0,
+    }
+    res = logistic_dif(ratings, focal="foc", reference="ref", conditioner=conditioner)
+    assert res.conditioner_common_support == pytest.approx(1.0, abs=1e-12)
