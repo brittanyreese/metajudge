@@ -43,3 +43,4 @@ data/raw/
 
 # session scratch (datasets, analysis scripts)
 scratch/
+sim/results/run.log

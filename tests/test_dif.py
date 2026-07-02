@@ -482,7 +482,21 @@ def test_conditioner_overlap_weak_true_in_weak_band() -> None:
     # Focal conditioner values sit mostly above reference, with overlap at 5.
     ref_cond, foc_cond = [1.0, 2.0, 3.0, 4.0, 5.0], [5.0, 6.0, 7.0, 8.0, 9.0]
     expected = _expected_corr(ref_cond, foc_cond)
-    assert 0.7 <= expected < 0.999
+    assert 0.2 <= expected < 0.999
+    ratings, conditioner = _corr_band_ratings(ref_cond, foc_cond)
+    res = logistic_dif(ratings, focal="foc", reference="ref", conditioner=conditioner)
+    assert res.conditioner_group_corr == pytest.approx(expected, abs=1e-9)
+    assert res.conditioner_overlap_weak is True
+
+
+def test_conditioner_overlap_weak_true_in_calibrated_band() -> None:
+    # A moderate group shift the pre-calibration 0.7 convention ignored: the S3
+    # operating-characteristics study (docs/sim-operating-characteristics.md) measured
+    # a 17% false B/C classification rate under H0 already at |corr| in (0.2, 0.4],
+    # so the calibrated flag must fire here.
+    ref_cond, foc_cond = [1.0, 2.0, 3.0, 4.0, 5.0], [2.0, 3.0, 4.0, 5.0, 6.0]
+    expected = _expected_corr(ref_cond, foc_cond)
+    assert 0.2 <= expected < 0.7
     ratings, conditioner = _corr_band_ratings(ref_cond, foc_cond)
     res = logistic_dif(ratings, focal="foc", reference="ref", conditioner=conditioner)
     assert res.conditioner_group_corr == pytest.approx(expected, abs=1e-9)
@@ -490,10 +504,11 @@ def test_conditioner_overlap_weak_true_in_weak_band() -> None:
 
 
 def test_conditioner_overlap_weak_false_below_band() -> None:
-    # Heavily overlapping conditioner distributions across groups.
-    ref_cond, foc_cond = [1.0, 2.0, 3.0, 4.0, 5.0], [2.0, 3.0, 4.0, 5.0, 6.0]
+    # Nearly identical conditioner distributions across groups (|corr| < 0.2, the
+    # calibrated safe band: 0.5% false B/C rate under H0 in the S3 study).
+    ref_cond, foc_cond = [1.0, 2.0, 3.0, 4.0, 5.0], [1.25, 2.25, 3.25, 4.25, 5.25]
     expected = _expected_corr(ref_cond, foc_cond)
-    assert expected < 0.7
+    assert expected < 0.2
     ratings, conditioner = _corr_band_ratings(ref_cond, foc_cond)
     res = logistic_dif(ratings, focal="foc", reference="ref", conditioner=conditioner)
     assert res.conditioner_group_corr == pytest.approx(expected, abs=1e-9)
