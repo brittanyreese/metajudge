@@ -1,4 +1,4 @@
-"""Reliability pillar: Krippendorff's alpha (commodity) with a bootstrap CI."""
+"""Reliability pillar: Krippendorff's alpha and ICC(2,1)/(2,k), both with confidence intervals."""
 
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ class AlphaResult:
     many were actually realized. They differ when a resample is degenerate (a
     column draw with no ratable variation makes alpha undefined and the resample
     is dropped), in which case the CI rests on ``n_effective`` replicates, not
-    ``n_bootstrap`` -- read a materially smaller ``n_effective`` as a low-precision
+    ``n_bootstrap``: read a materially smaller ``n_effective`` as a low-precision
     CI rather than a full-strength one, or read ``ci_reliable``.
     """
 
@@ -133,6 +133,19 @@ class IccResult:
 
 
 def icc(ratings: Ratings) -> IccResult:
+    """ICC(2,1) and ICC(2,k) from the Shrout-Fleiss (1979) two-way random-effects ANOVA.
+
+    ICC(2,1) is the reliability of a single rater's score; ICC(2,k) is the reliability
+    of the k-rater mean, its Spearman-Brown step-up. Both are absolute-agreement
+    coefficients and carry 95% F-based confidence intervals (McGraw & Wong, 1996); see
+    :class:`IccResult` for the interval caveats.
+
+    The estimator is defined on a complete crossed targets x raters matrix. It raises
+    ``ValueError`` on missing cells, naming the variance-components estimator that does
+    handle incomplete designs rather than reporting a biased listwise-deletion number,
+    and on degenerate designs with fewer than 2 targets or 2 raters, where the ANOVA
+    mean squares are undefined.
+    """
     wide = ratings.wide()
     if bool(wide.isna().to_numpy().any()):
         raise ValueError(

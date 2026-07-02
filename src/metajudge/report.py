@@ -50,7 +50,7 @@ class Flags:
     ``True`` when the item-cluster bootstrap's Nagelkerke R-squared-change CI lower bound
     clears the Jodoin-Gierl negligible band (robustly at least moderate DIF); ``False`` when
     the CI reaches into the negligible band. ``None`` when no bootstrap was run
-    (``audit(robust=False)``) or the bootstrap CI is unreliable -- the analytic p-values on
+    (``audit(robust=False)``) or the bootstrap CI is unreliable: the analytic p-values on
     the card are anti-conservative under clustering and are not a robust significance test.
     """
 
