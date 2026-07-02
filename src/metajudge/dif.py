@@ -194,6 +194,7 @@ class DifResult:
     focal_level: str
     converged: bool
     po_violation: bool
+    conditioner_group_corr: float
 
     @property
     def conditioner_is_external(self) -> bool:
@@ -313,6 +314,7 @@ class _DifStats:
     n_obs: int
     converged: bool
     po_violation: bool
+    conditioner_group_corr: float
 
 
 def _emit_item_rows(
@@ -426,6 +428,7 @@ def _dif_stats(
             n_obs=n,
             converged=c1 and c3 and ok_total,
             po_violation=False,
+            conditioner_group_corr=correlation,
         )
 
     # The three statistics are a telescoping nested decomposition: pre-clamp,
@@ -454,6 +457,7 @@ def _dif_stats(
         n_obs=n,
         converged=c1 and c2 and c3 and ok_total and ok_uniform and ok_nonuniform,
         po_violation=po_violation,
+        conditioner_group_corr=correlation,
     )
 
 
@@ -584,6 +588,7 @@ def logistic_dif(
         focal_level=focal,
         converged=stats.converged,
         po_violation=stats.po_violation,
+        conditioner_group_corr=stats.conditioner_group_corr,
     )
 
 

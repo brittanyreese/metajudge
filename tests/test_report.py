@@ -59,6 +59,7 @@ def _card(*, converged: bool, conditioner_source: str = "rest_score") -> ReportC
         focal_level="foc",
         converged=converged,
         po_violation=False,
+        conditioner_group_corr=0.0,
     )
     return ReportCard(alpha=alpha, icc=ic, dif=dif)
 
@@ -89,6 +90,7 @@ def _card_with_alpha(alpha: AlphaResult) -> ReportCard:
         focal_level="foc",
         converged=True,
         po_violation=False,
+        conditioner_group_corr=0.0,
     )
     return ReportCard(alpha=alpha, icc=icc_result, dif=dif)
 
