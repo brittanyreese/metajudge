@@ -35,6 +35,11 @@ from metajudge.data import Ratings
 _JG_NEGLIGIBLE = 0.035
 _JG_LARGE = 0.070
 
+# Advisory band for conditioner/group overlap: at or above this |corr|, the conditioner
+# is weakly separated from group membership and the DIF match is worth flagging (though
+# still identifiable up to the > 0.999 refusal guard in _dif_stats).
+_OVERLAP_WEAK_CORR = 0.7
+
 
 # ── Brant proportional-odds diagnostic (private; surfaced via DifResult.po_violation) ──
 
@@ -196,6 +201,7 @@ class DifResult:
     po_violation: bool
     conditioner_group_corr: float
     conditioner_common_support: float
+    conditioner_overlap_weak: bool
 
     @property
     def conditioner_is_external(self) -> bool:
@@ -625,6 +631,7 @@ def logistic_dif(
         po_violation=stats.po_violation,
         conditioner_group_corr=stats.conditioner_group_corr,
         conditioner_common_support=common_support,
+        conditioner_overlap_weak=(_OVERLAP_WEAK_CORR <= abs(stats.conditioner_group_corr) <= 0.999),
     )
 
 
