@@ -22,6 +22,12 @@ class Ratings:
         score_col: str,
         stratum_col: str | None,
     ) -> None:
+        """Build Ratings directly from an already-validated long frame.
+
+        This constructor does no validation (no duplicate-cell check, no stratum
+        completeness check): it trusts ``long`` as-is. Prefer :meth:`from_long` or
+        :meth:`from_eval_instruments`, which validate before construction.
+        """
         self._long = long
         self._item_col = item_col
         self._rater_col = rater_col

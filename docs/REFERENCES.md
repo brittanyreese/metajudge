@@ -105,6 +105,16 @@ Zheng, L., Chiang, W.-L., Sheng, Y., et al. (2023). Judging LLM-as-a-judge with 
 
 Norman, J. D., Rivera, M. U., and Hughes, D. A. (2026). Reliability without validity: A systematic, large-scale evaluation of LLM-as-a-judge models across agreement, consistency, and bias. arXiv:2606.19544.
 
+Wang, P., Li, L., Chen, L., Cai, Z., Zhu, D., Lin, B., Cao, Y., Liu, Q., Liu, T., and Sui, Z. (2023). Large language models are not fair evaluators. arXiv:2305.17926. Published at ACL 2024 (Volume 1: Long Papers). doi:10.18653/v1/2024.acl-long.511 (Position bias in LLM-as-judge scoring; motivates auditing the judge instrument, not just the scored model.)
+
+Bavaresco, A., Bernardi, R., Bertolazzi, L., Elliott, D., Fernandez, R., Gatt, A., Ghaleb, E., Giulianelli, M., Hanna, M., Koller, A., Martins, A. F. T., Mondorf, P., Neplenbroek, V., Pezzelle, S., Plank, B., Schlangen, D., Suglia, A., Surikuchi, A. K., Takmaz, E., and Testoni, A. (2024). LLMs instead of human judges? A large scale empirical study across 20 NLP evaluation tasks. arXiv:2406.18403. Accepted to ACL 2025 main conference.
+
+Bachmann, D., van der Wal, O., Chvojka, E., Zuidema, W. H., van Maanen, L., and Schulz, K. (2024). fl-IRT-ing with psychometrics to improve NLP bias measurement. Minds and Machines, 34(4), 37. doi:10.1007/s11023-024-09695-9
+
+Xu, Z., Kandanaarachchi, S., Ong, C. S., and Ntoutsi, E. (2025). Fairness evaluation with item response theory. Proceedings of the ACM Web Conference 2025 (WWW '25). arXiv:2411.02414. doi:10.1145/3696410.3714883
+
+Choi, J., Park, S., Cho, C., Park, H., and Kim, B. (2026). Diagnosing the reliability of LLM-as-a-judge via item response theory. arXiv:2602.00521. Accepted ICML 2026. (IRT/GRM-based judge-reliability diagnostic; explicitly defers DIF-style stratum comparisons to future work, per the SC2 re-check logged in `docs/decisions/`.)
+
 ## Demo corpus
 
 Fabbri, A. R., Kryscinski, W., McCann, B., Xiong, C., Socher, R., and Radev, D. (2020). SummEval: Re-evaluating Summarization Evaluation. arXiv:2007.12626. (Redistributed under MIT; see [`src/metajudge/data/SOURCE.md`](../src/metajudge/data/SOURCE.md).)
@@ -117,3 +127,9 @@ implementations: R `MASS::polr` for the proportional-odds DIF fit, and the
 `pingouin` and `statsmodels` Python packages as ICC and logistic-regression
 oracles. `pingouin` and `statsmodels` are test-only oracles and are never
 imported at runtime.
+
+AutoRubric: a Python library for rubric-based LLM-as-judge grading with
+agreement metrics and bootstrap confidence intervals (https://autorubric.org,
+https://github.com/delip/autorubric). Adjacent, shipped practitioner coverage
+of the commodity reliability layer; cited in SPEC.md as prior art this
+library does not compete with.

@@ -9,6 +9,11 @@ All notable changes to this project are documented here. The format follows [Kee
 - `IccResult` now carries McGraw & Wong (1996) exact F-based 95% confidence intervals for ICC(2,1) and ICC(2,k) (`icc1_ci_low/high`, `icck_ci_low/high`), matching pingouin's `ICC(A,1)`/`ICC(A,k)` bounds. The report card renders them, so the reliability pillar no longer ships a bare point estimate.
 - `cluster_bootstrap_dif` now reports bias-corrected and accelerated (BCa, Efron 1987) confidence intervals when they are computable and affordable, exposed via `ClusterBootstrapDif.ci_method` (`"bca"` or `"percentile"`). The acceleration comes from a leave-one-cluster-out jackknife; BCa is gated to samples where it both helps most and is cheap (jackknife no larger than the bootstrap), and falls back to the percentile interval otherwise. Validated against `scipy.stats.bootstrap(method="BCa")`.
 - `holm_adjust`: Holm-Bonferroni familywise-error correction for screening DIF across multiple stratum pairs, exported at the top level. Reproduces `statsmodels multipletests(method="holm")`.
+- `DifResult.conditioner_is_external` property: returns `True` when the conditioner came from an external source rather than the panel rest score. Previously this test required comparing `dif.conditioner_source == "external"` by hand.
+- `_brant_test` now short-circuits on near-singular Fisher information (condition number > 1e10), returning `converged=False` instead of passing a large pseudoinverse through the Wald statistic and producing a spurious `po_violation` signal.
+- `DifResult` gains `conditioner_group_corr`, `conditioner_common_support`, and `conditioner_overlap_weak`, a per-run diagnostic for the nested-strata conditioner/group confound. When `conditioner_overlap_weak` fires, `ReportCard.to_markdown` swaps the blanket nested-strata caveat for a run-specific warning naming the correlation and common-support numbers. See `docs/decisions/2026-07-01-e07-dif-nested-strata-confound.md`.
+- `LevelOfMeasurement` (a `Literal["nominal", "ordinal", "interval", "ratio"]`) is now exported at the top level and `krippendorff_alpha`/`audit`'s `level` parameter is validated against it with a clear `ValueError`, instead of a bare `str` passthrough that surfaced an opaque `TypeError` from inside the `krippendorff` package on a typo.
+- The reliability block of the report card now carries a validity caveat: high agreement (alpha, ICC) is not evidence the rubric measures the intended construct.
 
 ### Changed
 
@@ -21,15 +26,10 @@ All notable changes to this project are documented here. The format follows [Kee
 - `Ratings.from_long` now refuses duplicate item-rater cells and missing stratum values rather than silently averaging duplicates or carrying null strata into DIF.
 - `cluster_bootstrap_dif` now drops non-converged bootstrap refits from confidence intervals and reflects the surviving count in `n_effective`. CI bounds are `nan` when no resamples survive (previously collapsed to the point estimate).
 - Alpha CI warnings now surface thin bootstrap intervals even when no degenerate resamples were dropped.
-
-### Added
-
-- `DifResult.conditioner_is_external` property: returns `True` when the conditioner came from an external source rather than the panel rest score. Previously this test required comparing `dif.conditioner_source == "external"` by hand.
-- `_brant_test` now short-circuits on near-singular Fisher information (condition number > 1e10), returning `converged=False` instead of passing a large pseudoinverse through the Wald statistic and producing a spurious `po_violation` signal.
-
-### Changed
-
 - `Flags` dataclass simplified: `converged` and `po_violation` fields removed (use `card.dif.converged` and `card.dif.po_violation` directly). The `conditioner_is_external` and `alpha_ci_degraded` fields remain.
+- `dif.py`'s module docstring now states the design inversion up front (group is an item-level property, strata are disjoint item sets, the conditioner matches between nested sets) instead of leaving it to the ADR alone.
+- `_classify_jodoin_gierl`'s docstring now discloses that the Jodoin & Gierl (2001) thresholds were calibrated on the two-category logistic R-squared, and applying them to the ordinal proportional-odds change follows lordif convention rather than a direct validation.
+- `Ratings.__init__` now documents that it does no validation and points callers at `from_long`/`from_eval_instruments`.
 
 ### Removed
 

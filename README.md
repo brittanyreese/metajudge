@@ -3,7 +3,6 @@
 Audit a scoring instrument, an LLM-as-judge or a human rater panel, before you trust its numbers.
 
 [![CI](https://github.com/brittanyreese/metajudge/actions/workflows/ci.yml/badge.svg)](https://github.com/brittanyreese/metajudge/actions/workflows/ci.yml)
-[![PyPI](https://img.shields.io/pypi/v/metajudge)](https://pypi.org/project/metajudge/)
 ![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)
 ![Coverage](https://img.shields.io/badge/coverage-%E2%89%A595%25-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -15,10 +14,10 @@ It complements the ground-truth side of LLM evaluation (accuracy benchmarks, IRT
 
 ## Try it on the demo
 
-The library ships a real corpus (SummEval expert coherence), so the example below runs end to end after install:
+The library ships a real corpus (SummEval expert coherence), so the example below runs end to end after install. Not yet on PyPI: install from source.
 
 ```bash
-pip install metajudge
+pip install git+https://github.com/brittanyreese/metajudge@main
 python -c "from metajudge import load_demo, audit; print(audit(load_demo(), focal='abstractive', reference='extractive').to_markdown())"
 ```
 
@@ -39,10 +38,14 @@ It prints the actual report card below (these are the live demo numbers, not a m
 # metajudge report card
 
 ## Reliability
+> Note: high agreement (alpha, ICC) is not evidence the rubric measures the intended construct. It shows raters apply the scale consistently, not that the scale captures the quality you care about.
+
 - Krippendorff's alpha (ordinal): 0.554 [95% CI 0.529, 0.578]
 - ICC(2,1): 0.573 [95% CI 0.449, 0.664]; ICC(2,k): 0.801 [95% CI 0.710, 0.856] (1600 targets x 3 raters)
 
 ## DIF (panel-relative, rest-score conditioner)
+> Note: strata nest items (each item is in one stratum), so this matches quality between nested item sets, not within shared items. If the strata differ in quality, the conditioner correlates with the group and residual confounding (DIF impurity) remains; read the effect size as screening evidence, not a confound-free fairness verdict.
+
 > Note: the rest-score conditioner cannot see bias shared across the entire rater panel, so this is panel-relative DIF, not an instrument-level fairness clearance. Pass a valid independent external quality conditioner for a stronger instrument-level analysis.
 
 - abstractive vs extractive (conditioner: rest_score, n=4800)
@@ -56,7 +59,7 @@ It prints the actual report card below (these are the live demo numbers, not a m
 
 To audit a real instrument, point metajudge at the output of an existing judge runner. `Ratings.from_eval_instruments` maps the per-judge score frames produced by Epic's [`evaluation-instruments`](https://github.com/epic-open-source/evaluation-instruments) (`frame_from_evals`) into the `Ratings` the audit consumes, with rater = judge, item = sample, score = one rubric criterion. It is a local DataFrame transform that adds no dependency. A runnable, no-PHI walkthrough is in [docs/interop-epic.md](https://github.com/brittanyreese/metajudge/blob/main/docs/interop-epic.md).
 
-For a self-contained, end-to-end example that builds the judge panel itself, [`examples/audit_llm_judge.py`](https://github.com/brittanyreese/metajudge/blob/main/examples/audit_llm_judge.py) runs three LLM judges over 16 stratified summaries and prints the report card. `pip install metajudge[examples]`, then `--mode live --provider gemini` calls Gemini models on a billed project (`GOOGLE_AI_API_KEY`), or `--mode live --provider openrouter` calls free-tier OpenRouter models (`OPENROUTER_API_KEY`, capacity not guaranteed). `--mode offline` is a seeded simulation that runs with no key or network.
+For a self-contained, end-to-end example that builds the judge panel itself, [`examples/audit_llm_judge.py`](https://github.com/brittanyreese/metajudge/blob/main/examples/audit_llm_judge.py) runs three LLM judges over 16 stratified summaries and prints the report card. `pip install "metajudge[examples] @ git+https://github.com/brittanyreese/metajudge@main"`, then `--mode live --provider gemini` calls Gemini models on a billed project (`GOOGLE_AI_API_KEY`), or `--mode live --provider openrouter` calls free-tier OpenRouter models (`OPENROUTER_API_KEY`, capacity not guaranteed). `--mode offline` is a seeded simulation that runs with no key or network.
 
 ## Cluster-robust DIF confidence intervals
 
@@ -94,8 +97,10 @@ The matching variable is a leave-one-rater-out rest score across the three exper
 
 ## Install
 
+Not yet published to PyPI; install from source:
+
 ```bash
-pip install metajudge
+pip install git+https://github.com/brittanyreese/metajudge@main
 ```
 
 Requires Python 3.11 or later.
