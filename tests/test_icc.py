@@ -12,7 +12,7 @@ def _wide_to_ratings(wide: pd.DataFrame) -> Ratings:
 
 
 def _shrout_fleiss_table() -> pd.DataFrame:
-    # Shrout & Fleiss (1979) Table 2 — canonical worked example.
+    # Shrout & Fleiss (1979) Table 2, the canonical worked example.
     return pd.DataFrame(
         {
             "j1": [9, 6, 8, 7, 10, 6],

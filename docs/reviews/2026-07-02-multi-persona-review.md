@@ -1,5 +1,9 @@
 # Multi-persona project review — 2026-07-02
 
+Status: Tier 1 findings were closed in `28df945` (PR #7); Tier 2 work is in
+progress and tracked in [CHANGELOG.md](../../CHANGELOG.md) under Unreleased.
+This document is the audit record that drove those fixes, kept as written.
+
 Rigorous whole-project review of metajudge before resume-linking (target roles: AI/LLM
 evaluation, measurement and outcomes research, psychometrics). Two phases:
 

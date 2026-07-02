@@ -309,7 +309,7 @@ def _nagelkerke(ll_model: float, ll_null: float, n: int) -> float:
 
 # Optimizer noise can make a nested log-likelihood rise by ~1e-10 under no DIF; a
 # likelihood-ratio chi-square cannot be negative, so clamp at zero. But a *meaningful*
-# negative -- the fuller model fitting worse than the model it nests -- is impossible
+# negative (the fuller model fitting worse than the model it nests) is impossible
 # unless the fit failed, and the bare clamp would mask such a divergence as a clean null.
 _LR_NOISE_TOL = 1e-6
 
@@ -412,12 +412,12 @@ def _dif_stats(
     ``want_split`` controls whether the uniform/nonuniform decomposition is computed: the
     total chi-square and the Nagelkerke R-squared change need only the conditioner-only and
     full models, so the bootstrap (which reports a CI for the total only) skips the middle
-    fit -- two fits per resample instead of three. When ``False`` the uniform and nonuniform
+    fit: two fits per resample instead of three. When ``False`` the uniform and nonuniform
     statistics are ``nan`` and ``converged`` reflects the two fits and the total guard.
 
-    Raises:
-        ValueError: if all responses fall in one category, or the conditioner has no variance
-            or is near-perfectly collinear with the group, so DIF is not identifiable.
+    Raises ``ValueError`` when all responses fall in one category, or when the conditioner
+    has no variance or is near-perfectly collinear with the group, so DIF is not
+    identifiable.
     """
     n = len(scores)
     g: NDArray[np.float64] = np.asarray(groups, dtype=float)
@@ -543,12 +543,11 @@ def logistic_dif(
     inflates the familywise error rate, and no multiplicity correction is applied here;
     adjust across the pairs you run (e.g. Holm) when screening more than one.
 
-    Raises:
-        ValueError: if ``focal`` or ``reference`` is not a stratum level; if an explicit
-            conditioner omits an included item; if no independent conditioner can be
-            formed (single rating per item and no explicit conditioner); if all responses
-            fall in one category; or if the conditioner is constant or near-perfectly
-            collinear with the group, so DIF is not identifiable.
+    Raises ``ValueError`` when ``focal`` or ``reference`` is not a stratum level, when an
+    explicit conditioner omits an included item, when no independent conditioner can be
+    formed (a single rating per item and no explicit conditioner), when all responses fall
+    in one category, or when the conditioner is constant or near-perfectly collinear with
+    the group, so DIF is not identifiable.
     """
     if conditioner is None and len(ratings.raters) == 2:
         warnings.warn(
@@ -712,9 +711,8 @@ def sweep(
     tuple is passed straight to :func:`logistic_dif`; the same ``conditioner`` and
     ``po_alpha`` apply to every pair.
 
-    Raises:
-        ValueError: if ``pairs`` is empty, or (via :func:`logistic_dif`) for any per-pair
-            identifiability or stratum-lookup failure.
+    Raises ``ValueError`` when ``pairs`` is empty, and propagates the same error (via
+    :func:`logistic_dif`) for any per-pair identifiability or stratum-lookup failure.
     """
     pair_list = [(str(f), str(r)) for f, r in pairs]
     if not pair_list:
@@ -773,7 +771,7 @@ def _bca_bounds(
 # With fewer items per group the item-cluster bootstrap draws from too small a space of
 # distinct resample compositions for the percentile CI to be stable, even if n_effective
 # clears the convergence floor. The number of distinct resamples (multisets) of n items is
-# C(2n-1, n): only 126 at n=5 and 35 at n=4 — sparse enough that the 2.5/97.5 percentiles
+# C(2n-1, n): only 126 at n=5 and 35 at n=4, sparse enough that the 2.5/97.5 percentiles
 # jump between a handful of discrete values. Below 5 the CI should be treated as unstable.
 _MIN_CLUSTER_SIZE = 5
 
@@ -855,12 +853,11 @@ def cluster_bootstrap_dif(
     Degenerate resamples (a draw with no ordinal variation, or one that fails the engine's
     identifiability guards) are dropped; the realized count is ``n_effective``. Below the
     reliability floor (100 surviving resamples) the bounds are indicative only and
-    ``ci_reliable`` is ``False`` -- read the point estimate instead.
+    ``ci_reliable`` is ``False``: read the point estimate instead.
 
-    Raises:
-        ValueError: if ``ci`` is not strictly inside ``(0, 1)``.
-        ValueError: if ``ratings`` has no stratum column (pass ``stratum=`` to
-            :meth:`Ratings.from_long <metajudge.data.Ratings.from_long>`).
+    Raises ``ValueError`` when ``ci`` is not strictly inside ``(0, 1)``, and when
+    ``ratings`` has no stratum column (pass ``stratum=`` to
+    :meth:`Ratings.from_long <metajudge.data.Ratings.from_long>`).
     """
     if not 0.0 < ci < 1.0:
         raise ValueError(f"ci must be in (0, 1); got {ci}")

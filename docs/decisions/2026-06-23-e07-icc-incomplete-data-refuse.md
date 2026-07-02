@@ -25,7 +25,7 @@ The refusal is squarely inside current practice. On a missing cell, Python `ping
 
 ## Demo relevance
 
-The locked demo corpus (SummEval, corpus-lock ADR 2026-06-22) maps the worked demo to the fully crossed three-expert coherence slice, so the missing-cell branch does not fire on the shipped demo. One honest caveat: SummEval's crowd-rater assignments are not fully crossed in the raw release, so a user who loads the crowd raters can hit the refusal. That is an argument for a clear, cited message, which this decision provides, not for a half-strength estimator under the commodity pillar.
+The locked demo corpus (SummEval, corpus-lock ADR 2026-06-22) maps the worked demo to the fully crossed three-expert coherence slice, so the missing-cell branch does not fire on the shipped demo. One caveat: SummEval's crowd-rater assignments are not fully crossed in the raw release, so a user who loads the crowd raters can hit the refusal. That is an argument for a clear, cited message, which this decision provides, not for a half-strength estimator under the commodity pillar.
 
 ## What this changes in the build
 

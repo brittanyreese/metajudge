@@ -17,7 +17,7 @@ The intraclass-correlation framework is defined on a subjects by raters layout w
 
 When a rubric has several dimensions, the adapter scores one dimension at a time rather than stacking sample-by-criterion rows into a single ICC. Generalizability theory and many-facet Rasch treat the criterion as its own facet that carries variance and interacts with raters, so pooling dimensions into one coefficient confounds between-criterion difficulty with rater disagreement and assumes criteria are exchangeable replicates, which they are not (Brennan, 2001; Li, 2022; Wang and Luo, 2019). A caller who wants a cross-dimension summary runs the audit per criterion and reports them side by side. Repeated runs of one judge (temperature or seed variation) are a legitimate alternative rater facet under the same shape, read as intra-rater or test-retest reliability (Hallgren, 2012; Norman et al., 2026).
 
-## The exemplar and its honesty
+## The exemplar and its limits
 
 Epic's `evaluation-instruments` ships example clinical inputs, not saved judge outputs; producing real outputs needs a live model call and the full corpus is PHI-bearing and DUA-gated. The interop exemplar therefore runs on a small, de-identified fixture built in Epic's real `frame_from_evals` schema (the `(criterion, {class, score, notes})` MultiIndex), with no PHI and no API call. It demonstrates the seam and the report card on schema-faithful data and is labeled illustrative, not a finding about any clinical instrument. The shipped numerical demo remains SummEval (corpus-lock ADR, 2026-06-22); the Epic seam is the positioning and integration path onto a client's own judge outputs.
 

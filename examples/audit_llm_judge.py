@@ -3,7 +3,7 @@
 Three LLM judges (distinct models) each score the coherence (1-5) of 16 short
 summaries, stratified by system family (extractive vs abstractive). metajudge
 then reports inter-judge reliability (Krippendorff's alpha, ICC) and differential
-item functioning across the two families -- i.e. whether the judge panel is
+item functioning across the two families: whether the judge panel is
 systematically tougher or noisier on abstractive summaries than on extractive
 ones, conditional on quality. That is the question you ask before you trust an
 LLM judge's scores as measurements.
@@ -11,17 +11,17 @@ LLM judge's scores as measurements.
 Two modes, two providers:
 
     # Real LLM judges. --provider selects which panel and which key/SDK:
-    #   gemini     -- needs GOOGLE_AI_API_KEY + `google-genai`. Needs a billed
+    #   gemini: needs GOOGLE_AI_API_KEY + `google-genai`. Needs a billed
     #                 (Tier 1+) project; the free tier's per-project RPM/RPD
     #                 quotas are too tight for a 48-call panel run.
-    #   openrouter -- needs OPENROUTER_API_KEY + `openai` (OpenRouter speaks
+    #   openrouter: needs OPENROUTER_API_KEY + `openai` (OpenRouter speaks
     #                 the OpenAI chat-completions schema). Free `:free` models,
     #                 but free-tier capacity is unpredictable call to call.
     # Both SDKs come with `pip install metajudge[examples]`.
     uv run python examples/audit_llm_judge.py --mode live --provider gemini
     uv run python examples/audit_llm_judge.py --mode live --provider openrouter
 
-    # Reproducible simulation -- no key, no network, runs on a fresh clone:
+    # Reproducible simulation: no key, no network, runs on a fresh clone:
     uv run python examples/audit_llm_judge.py --mode offline
 
 Live mode writes the real score matrix to `examples/llm_judge_scores.csv` and the
@@ -30,7 +30,7 @@ SIMULATED panel so the report-card format is reproducible with zero setup; the
 simulated numbers are not a model run and are labelled as such.
 
 Items live in `examples/summaries_sample.jsonl`. The summaries are synthetic
-(several abstractive ones carry deliberate coherence defects -- vague pronouns,
+(several abstractive ones carry deliberate coherence defects: vague pronouns,
 a non-sequitur, word-salad, an unsupported claim) so the judges have something
 real to disagree about.
 """
@@ -57,12 +57,12 @@ OUTPUT_PATH = HERE / "sample_output_llm.txt"
 # temperature > 0) is what produces a genuine inter-rater question: do
 # independent judges agree?
 JUDGE_MODELS_BY_PROVIDER: dict[str, list[str]] = {
-    # Stable (non-preview) Gemini models -- preview/experimental models get
+    # Stable (non-preview) Gemini models; preview/experimental models get
     # tighter rate limits regardless of billing tier.
     "gemini": ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-3.5-flash"],
     # OpenRouter `:free` models from three distinct providers, chosen for
     # general instruction-following rather than code-specialized variants. If
-    # one is consistently 429ing, swap it for another `:free` model -- free
+    # one is consistently 429ing, swap it for another `:free` model; free
     # capacity varies model to model and hour to hour.
     "openrouter": [
         "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
@@ -141,10 +141,10 @@ def _call_with_retry(
         except error_types as exc:
             code = get_status(exc)
             if code not in retryable:
-                raise  # 404 bad model, auth, etc. -- fail fast, don't spin
+                raise  # 404 bad model, auth, etc.: fail fast, don't spin
             if attempt == max_attempts:
                 raise SystemExit(
-                    f"{label} kept returning {code} after {max_attempts} retries -- it is "
+                    f"{label} kept returning {code} after {max_attempts} retries; it is "
                     f"capacity-constrained right now. Swap it for another model, or retry later."
                 ) from exc
             wait = min(2**attempt, 30) + random.uniform(0, 1)
@@ -284,7 +284,7 @@ def score_live(items: list[dict[str, str]], provider: str) -> pd.DataFrame:
 
 
 def score_offline(items: list[dict[str, str]], provider: str) -> pd.DataFrame:
-    """Seeded SIMULATED judge panel -- NOT a model run, for reproducible structure.
+    """Seeded SIMULATED judge panel: NOT a model run, for reproducible structure.
 
     Latent coherence is derived deterministically from the item id and family
     (abstractive items are lower and more variable, matching the deliberate
@@ -329,9 +329,9 @@ def report(scores: pd.DataFrame, *, simulated: bool, provider: str) -> str:
         ratings, focal="abstractive", reference="extractive", n_boot=200, seed=0
     )
     banner = (
-        "SIMULATED PANEL (no model calls) -- run `--mode live` for real LLM judges"
+        "SIMULATED PANEL (no model calls): run `--mode live` for real LLM judges"
         if simulated
-        else f"LIVE LLM JUDGE PANEL ({provider}) -- {', '.join(judge_models)}"
+        else f"LIVE LLM JUDGE PANEL ({provider}): {', '.join(judge_models)}"
     )
     lines = [
         "# metajudge: LLM judge panel audit",
