@@ -20,11 +20,13 @@ import pandas as pd
 import pytest
 from numpy.typing import NDArray
 
+import metajudge.dif as dif_module
 from metajudge.data import Ratings
 from metajudge.dif import (
     ClusterBootstrapDif,
     DifResult,
     _classify_jodoin_gierl,  # pyright: ignore[reportPrivateUsage]
+    _DifStats,  # pyright: ignore[reportPrivateUsage]
     _fit_proportional_odds,  # pyright: ignore[reportPrivateUsage]
     _lr_chi2,  # pyright: ignore[reportPrivateUsage]
     cluster_bootstrap_dif,
@@ -465,6 +467,50 @@ def test_cluster_bootstrap_returns_bracketed_ci() -> None:
     assert 0 < res.n_effective <= res.n_boot == 120
 
 
+def test_cluster_bootstrap_drops_nonconverged_refits(monkeypatch: pytest.MonkeyPatch) -> None:
+    ratings, cond = _frozen()
+    bootstrap_calls = 0
+
+    def fake_dif_stats(
+        scores: list[float],
+        groups: list[float],
+        cond_rows: list[float],
+        *,
+        want_split: bool,
+        po_alpha: float = 1e-3,
+    ) -> _DifStats:
+        nonlocal bootstrap_calls
+        del scores, groups, cond_rows, po_alpha
+        if want_split:
+            return _DifStats(
+                chi2_total=1.0,
+                chi2_uniform=0.5,
+                chi2_nonuniform=0.5,
+                nagelkerke_r2_delta=0.01,
+                n_obs=_N_ITEMS * _N_RATERS,
+                converged=True,
+                po_violation=False,
+            )
+        bootstrap_calls += 1
+        return _DifStats(
+            chi2_total=float(bootstrap_calls),
+            chi2_uniform=float("nan"),
+            chi2_nonuniform=float("nan"),
+            nagelkerke_r2_delta=0.01 * bootstrap_calls,
+            n_obs=_N_ITEMS * _N_RATERS,
+            converged=bootstrap_calls != 1,
+            po_violation=False,
+        )
+
+    monkeypatch.setattr(dif_module, "_dif_stats", fake_dif_stats)
+    res = cluster_bootstrap_dif(
+        ratings, focal="foc", reference="ref", conditioner=cond, n_boot=3, seed=0
+    )
+    assert bootstrap_calls == 3
+    assert res.n_effective == 2
+    assert res.chi2_total_ci_low > 1.0
+
+
 def test_cluster_bootstrap_is_reproducible() -> None:
     ratings, cond = _frozen()
     kw = {"focal": "foc", "reference": "ref", "conditioner": cond, "n_boot": 120, "seed": 7}
@@ -528,12 +574,16 @@ def test_cluster_bootstrap_rest_score_path() -> None:
     assert res.r2_delta_ci_low <= res.r2_delta_ci_high
 
 
-def test_cluster_bootstrap_zero_boot_collapses_to_point() -> None:
+def test_cluster_bootstrap_zero_boot_returns_nan_ci() -> None:
+    import math
+
     ratings, cond = _frozen()
     res = cluster_bootstrap_dif(ratings, focal="foc", reference="ref", conditioner=cond, n_boot=0)
     assert res.n_effective == 0
-    assert res.r2_delta_ci_low == res.r2_delta_ci_high == res.base.nagelkerke_r2_delta
-    assert res.chi2_total_ci_low == res.chi2_total_ci_high == res.base.chi2_total
+    assert math.isnan(res.r2_delta_ci_low)
+    assert math.isnan(res.r2_delta_ci_high)
+    assert math.isnan(res.chi2_total_ci_low)
+    assert math.isnan(res.chi2_total_ci_high)
 
 
 def test_cluster_bootstrap_ci_reliable_tracks_effective_count() -> None:
@@ -636,3 +686,72 @@ def test_logistic_dif_po_violation_responds_to_alpha() -> None:
     assert isinstance(strict.po_violation, bool)
     assert strict.po_violation is True
     assert never.po_violation is False
+
+
+def test_brant_test_m_lt_2_early_return_with_binary_scores() -> None:
+    """Binary ordinal (2 levels → m=1 < 2) triggers the _brant_test early-return path.
+
+    With m < 2 the Brant test is inapplicable; the implementation returns converged=True
+    and p=1.0, so po_violation is always False regardless of po_alpha.
+    """
+    rng = np.random.default_rng(42)
+    rows: list[dict[str, object]] = []
+    for item in range(40):
+        stratum = "foc" if item < 20 else "ref"
+        for rater in range(3):
+            rows.append(
+                {"item": item, "rater": rater, "score": int(rng.random() > 0.5), "stratum": stratum}
+            )
+    ratings = Ratings.from_long(
+        pd.DataFrame(rows), item="item", rater="rater", score="score", stratum="stratum"
+    )
+    # po_alpha=1.0 would flag any real Brant result; binary data short-circuits before that.
+    result = logistic_dif(ratings, focal="foc", reference="ref", po_alpha=1.0)
+    assert result.po_violation is False
+
+
+def test_brant_test_uses_default_names_when_none_passed() -> None:
+    """Calling _brant_test with names=None exercises the default-names branch."""
+    from metajudge.dif import _brant_test  # pyright: ignore[reportPrivateUsage]
+
+    rng = np.random.default_rng(0)
+    endog = rng.integers(0, 3, size=60)
+    exog = rng.standard_normal((60, 2))
+    result = _brant_test(endog, exog)  # names=None triggers the default x0..x{p-1} path
+    assert "x0" in result.per_predictor
+    assert "x1" in result.per_predictor
+
+
+def test_dif_stats_brant_runtime_error_sets_po_violation_false(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """RuntimeError from _brant_test is caught; po_violation falls back to False."""
+
+    def _raise(*args: object, **kwargs: object) -> object:
+        raise RuntimeError("forced from test")
+
+    monkeypatch.setattr(dif_module, "_brant_test", _raise)
+    ratings, _ = _frozen()
+    result = logistic_dif(ratings, focal="foc", reference="ref")
+    assert result.po_violation is False
+
+
+def test_bootstrap_value_error_resamples_give_nan_ci(monkeypatch: pytest.MonkeyPatch) -> None:
+    """ValueError inside the bootstrap try-block is caught; all resamples drop → NaN CI."""
+    import math
+
+    original = dif_module._dif_stats  # pyright: ignore[reportPrivateUsage]
+
+    def _fail_in_bootstrap(*args: object, want_split: bool, **kwargs: object) -> object:
+        if not want_split:
+            raise ValueError("forced bootstrap failure")
+        return original(*args, want_split=want_split, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(dif_module, "_dif_stats", _fail_in_bootstrap)
+    ratings, cond = _frozen()
+    res = cluster_bootstrap_dif(
+        ratings, focal="foc", reference="ref", conditioner=cond, n_boot=3, seed=0
+    )
+    assert res.n_effective == 0
+    assert math.isnan(res.r2_delta_ci_low)
+    assert math.isnan(res.chi2_total_ci_low)

@@ -1,11 +1,11 @@
-# E07 ICC: refuse on incomplete data, defer the estimator to E04
+# E07 ICC: refuse on incomplete data; estimator is outside E07 scope
 
 Status: Accepted for E07. Date: 2026-06-23.
 Records the standing decision on how `reliability.py::icc` handles a missing or partially-crossed targets x raters matrix, and the method-currency pass behind it.
 
 ## Decision
 
-`icc` stays the balanced Shrout-Fleiss (1979) two-way random-effects, absolute-agreement estimator. On any missing cell it raises a `ValueError` that names the correct method for incomplete data, names the biased fallback it is declining to use, and points to the E04 variance pillar where the correct estimator belongs. E07 does not ship an incomplete-data ICC. Listwise deletion is not adopted as a default, and a hand-rolled no-omission estimator is not built now.
+`icc` stays the balanced Shrout-Fleiss (1979) two-way random-effects, absolute-agreement estimator. On any missing cell it raises a `ValueError` that names the correct method for incomplete data and names the biased fallback it is declining to use. E07 does not ship an incomplete-data ICC. Listwise deletion is not adopted as a default, and a hand-rolled no-omission estimator is not built now.
 
 ## Why not just handle the missing cells
 
@@ -13,11 +13,11 @@ The question looks like a small robustness upgrade and is not. Three findings fr
 
 First, the estimand changes. ICC(2,1)/(2,k) is defined on a complete crossed design; the Shrout-Fleiss mean-square decomposition (`ss_rows + ss_cols + ss_error = ss_total`) holds only when every target is rated by every rater. The moment the matrix is unbalanced, the correct object is a variance-components estimate, not a balanced-ANOVA coefficient (ten Hove, Jorgensen, and van der Ark, 2024).
 
-Second, the correct estimator is the deferred E04 engine. The current methods consensus for incomplete interrater designs is maximum-likelihood estimation of a random-effects (variance-components / generalizability-theory) model, with ten Hove et al. (2025) finding ML of a random-effects model with Monte-Carlo confidence intervals preferred over Bayesian and common-factor alternatives on bias, RMSE, and coverage. That is the same variance-decomposition machinery (REML over a crossed random-effects model) that the project SPEC scopes to E04 and the lit review places as the second open gap. A defensible no-omission ICC cannot be reached without doing a slice of that deferred work.
+Second, the correct estimator is full-instrument machinery outside E07. The current methods consensus for incomplete interrater designs is maximum-likelihood estimation of a random-effects (variance-components / generalizability-theory) model, with ten Hove et al. (2025) finding ML of a random-effects model with Monte-Carlo confidence intervals preferred over Bayesian and common-factor alternatives on bias, RMSE, and coverage. That is the same variance-decomposition machinery (REML over a crossed random-effects model) that falls outside this two-pillar package's scope. A defensible no-omission ICC cannot be reached without doing that larger work.
 
 Third, the lightweight shortcut is not a strong enough oracle. `irrNA::iccNA` (Brueckl and Heuer, 2022) generalizes the McGraw and Wong (1996) ICCs to randomly incomplete data via Ebel's (1951) method, with no imputation and no omission, and reduces to the standard ICCs on balanced data. It is genuinely lightweight (R `stats` only) and is the one real lightweight standard for unbalanced ICC. But it is a single software-validated package with no independent simulation backing of the strength the gold-standard ML estimator carries. Pinning a number to iccNA alone, in a regime where iccNA and the gold-standard ML estimator can genuinely disagree, would certify a contested reliability coefficient on the commodity pillar. That is the reputational-damage shape the non-compressible-correctness rule (SPEC R19) exists to prevent, and there is no differentiating upside on the reliability pillar to justify the risk.
 
-An adversarial review of the build-it option rejected it on all four of: scope (the method is E04-shaped), oracle strength (iccNA is too thin), demo relevance (the shipped corpus never exercises the path), and opportunity cost against the finish track. The refusal is the honest answer: it states the correct method and declines to fake it.
+An adversarial review of the build-it option rejected it on all four of: scope (the method is full-instrument-shaped), oracle strength (iccNA is too thin), demo relevance (the shipped corpus never exercises the path), and opportunity cost against the finish track. The refusal is the honest answer: it states the correct method and declines to fake it.
 
 ## What the standard tools do
 
@@ -29,11 +29,11 @@ The locked demo corpus (SummEval, corpus-lock ADR 2026-06-22) maps the worked de
 
 ## What this changes in the build
 
-The single `ValueError` in `reliability.py::icc` gains a cited, method-naming message. The missing-cell rejection test in `tests/test_icc.py` asserts the message names the correct estimator (variance-components), the biased fallback (listwise), and the E04 deferral, so the guidance is a tested contract rather than prose that can rot. No runtime dependency is added; the balanced estimator and its Shrout-Fleiss and pingouin oracles are unchanged.
+The single `ValueError` in `reliability.py::icc` gains a cited, method-naming message. The missing-cell rejection test in `tests/test_icc.py` asserts the message names the correct estimator (variance-components), the biased fallback (listwise), and that the estimator is outside this two-pillar package, so the guidance is a tested contract rather than prose that can rot. No runtime dependency is added; the balanced estimator and its Shrout-Fleiss and pingouin oracles are unchanged.
 
 ## When this is revisited
 
-Incomplete-data reliability becomes in scope at E04, where the variance-components / G-theory estimator is built and validated against the ML standard (ten Hove et al., 2025), and where R `lme4::lmer` or an equivalent ML fit is the oracle rather than iccNA alone. If E07 is ever re-scoped to make incomplete-data reliability a headline feature, the same rule applies: it is oracle-validated against the ML estimator, not iccNA, and that is an E04-sized task by the project's own SPEC.
+If incomplete-data reliability becomes a headline feature, the variance-components / G-theory estimator must be built and validated against the ML standard (ten Hove et al., 2025), with R `lme4::lmer` or an equivalent ML fit as the oracle rather than iccNA alone. If E07 is ever re-scoped to include it, the same rule applies: it is oracle-validated against the ML estimator, not iccNA, and that is full-instrument-sized work by the project's own SPEC.
 
 ## References
 

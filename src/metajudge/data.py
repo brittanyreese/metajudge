@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from collections.abc import Hashable, Mapping
+from typing import Never
 
 import numpy as np
 import pandas as pd
@@ -39,11 +40,25 @@ class Ratings:
         score: str,
         stratum: str | None = None,
     ) -> Ratings:
-        cols = [item, rater, score] + ([stratum] if stratum else [])
+        cols = [item, rater, score] + ([stratum] if stratum is not None else [])
         missing = [c for c in cols if c not in df.columns]
         if missing:
             raise ValueError(f"columns not found: {missing}")
+        duplicate_cells = df.duplicated(subset=[item, rater], keep=False)
+        if bool(duplicate_cells.any()):
+            bad = df.loc[duplicate_cells, [item, rater]].drop_duplicates().to_dict("records")
+            if stratum is not None and bool(
+                df.loc[duplicate_cells].groupby([item, rater])[stratum].nunique().gt(1).any()
+            ):
+                raise ValueError(
+                    f"duplicate item-rater cells with conflicting stratum labels: {bad}; "
+                    "fix the stratum column first, then aggregate if needed"
+                )
+            raise ValueError(f"duplicate item-rater cells found; aggregate explicitly first: {bad}")
         if stratum is not None:
+            if bool(df[stratum].isna().any()):
+                bad_items = df.loc[df[stratum].isna(), item].drop_duplicates().tolist()
+                raise ValueError(f"missing stratum values for items: {bad_items}")
             per_item = df.groupby(item)[stratum].nunique()
             if (per_item > 1).any():
                 bad = per_item[per_item > 1].index.tolist()
@@ -55,23 +70,6 @@ class Ratings:
             score_col=score,
             stratum_col=stratum,
         )
-
-    @staticmethod
-    def _select_criterion(frame: pd.DataFrame, criterion: str) -> pd.Series:
-        """Pull the per-sample score column for one rubric criterion.
-
-        Handles both `frame_from_evals` shapes: a flat frame whose columns are
-        criteria, and a detailed frame whose columns are a (criterion, field)
-        MultiIndex where field is one of class/score/notes.
-        """
-        if isinstance(frame.columns, pd.MultiIndex):
-            col = (criterion, "score")
-            if col not in frame.columns:
-                raise ValueError(f"criterion {criterion!r} (score field) not found in eval frame")
-            return frame[col]
-        if criterion not in frame.columns:
-            raise ValueError(f"criterion {criterion!r} not found in eval frame")
-        return frame[criterion]
 
     @classmethod
     def from_eval_instruments(
@@ -99,7 +97,19 @@ class Ratings:
             raise ValueError("from_eval_instruments needs at least one judge frame")
         parts: list[pd.DataFrame] = []
         for rater_id, frame in frames.items():
-            scores = cls._select_criterion(frame, criterion)
+            # Handles both frame_from_evals shapes: flat (columns = criteria) and
+            # detailed ((criterion, field) MultiIndex, field in class/score/notes).
+            if isinstance(frame.columns, pd.MultiIndex):
+                col = (criterion, "score")
+                if col not in frame.columns:
+                    raise ValueError(
+                        f"criterion {criterion!r} (score field) not found in eval frame"
+                    )
+                scores = frame[col]
+            else:
+                if criterion not in frame.columns:
+                    raise ValueError(f"criterion {criterion!r} not found in eval frame")
+                scores = frame[criterion]
             parts.append(
                 pd.DataFrame(
                     {
@@ -117,12 +127,16 @@ class Ratings:
         return cls.from_long(long, item="item", rater="rater", score="score")
 
     @property
-    def n_items(self) -> int:
-        return len(self.items)
+    def n_items(self) -> Never:
+        raise AttributeError(
+            "Ratings.n_items was removed in 0.1.0; use len(ratings.items) instead."
+        )
 
     @property
-    def n_raters(self) -> int:
-        return len(self.raters)
+    def n_raters(self) -> Never:
+        raise AttributeError(
+            "Ratings.n_raters was removed in 0.1.0; use len(ratings.raters) instead."
+        )
 
     def wide(self) -> pd.DataFrame:
         wide = self._long.pivot_table(

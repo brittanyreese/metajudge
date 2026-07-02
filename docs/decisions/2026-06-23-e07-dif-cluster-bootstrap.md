@@ -29,14 +29,14 @@ The bootstrap is seeded and reproducible. Like the alpha percentile CI, it has n
 
 ## Scope and honest limits
 
-- The item-cluster bootstrap addresses within-item rater dependence and item-level sampling. It does not remove cross-item within-rater dependence (one judge scoring many items). That residual two-way dependence is handled correctly only by a random-effects / GEE model, which is the deferred E04 variance pillar; this is the scipy-only interim, not the final word.
+- The item-cluster bootstrap addresses within-item rater dependence and item-level sampling. It does not remove cross-item within-rater dependence (one judge scoring many items). That residual two-way dependence is handled correctly only by a random-effects / GEE model, which is full-instrument scope outside E07; this is the scipy-only interim, not the final word.
 - The bootstrap is a screening robustness check, not a confirmatory test. The framing in the report card stays "screen, not verdict."
 - Runtime dependencies are unchanged (numpy, scipy, pandas, krippendorff); the bootstrap reuses the existing engine and `numpy.random`.
 
 ## Alternatives considered
 
 - Drop the p-values and report only the effect size and class. Simpler, but discards information a cluster bootstrap can instead quantify honestly. Rejected in favor of measuring the uncertainty.
-- A logistic mixed model / GEE now. The principled fix, but it is the E04 random-effects engine and exceeds E07's scipy-only, no-new-dependency constraint.
+- A logistic mixed model / GEE now. The principled fix, but it is full-instrument random-effects machinery and exceeds E07's scipy-only, no-new-dependency constraint.
 - A rater-cluster bootstrap. Captures the repeated-judge dependence but treats items (which carry the DIF grouping) as fixed; the item is the more natural replication unit for a group effect defined at the item level. Recorded as a possible future option.
 
 ## References
