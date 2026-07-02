@@ -1183,3 +1183,15 @@ def test_conditioner_common_support_identical_range_is_one() -> None:
     }
     res = logistic_dif(ratings, focal="foc", reference="ref", conditioner=conditioner)
     assert res.conditioner_common_support == pytest.approx(1.0, abs=1e-12)
+
+
+def test_conditioner_common_support_rest_score_representative_is_item_mean() -> None:
+    # Rest-score path (no external conditioner): the per-item representative is the item mean.
+    # Reference item means [1, 2, 3], focal item means [3, 4, 5]; the overlapping range is
+    # [3, 3], which holds exactly one value per side, so common_support = (1 + 1) / 6. This
+    # pins the rest-score branch of the representative-value selection, not just the external
+    # branch the other fixtures cover.
+    ratings = _make([[1, 1], [2, 2], [3, 3]], [[3, 3], [4, 4], [5, 5]])
+    res = logistic_dif(ratings, focal="foc", reference="ref")
+    assert res.conditioner_source == "rest_score"
+    assert res.conditioner_common_support == pytest.approx(2 / 6, abs=1e-12)
