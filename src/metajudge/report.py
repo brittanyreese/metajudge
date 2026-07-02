@@ -145,6 +145,22 @@ class ReportCard:
                 "for a stronger instrument-level analysis.",
                 "",
             ]
+        # Structural caveat, independent of conditioner source: each item belongs to exactly
+        # one stratum, so group is an item-level property and the conditioner is matched
+        # BETWEEN nested item sets rather than within items answered by both groups. When the
+        # strata genuinely differ in quality, the conditioner correlates with the group and
+        # the single linear match leaves residual confounding (DIF impurity) this screen does
+        # not remove; at near-perfect confounding the engine refuses outright. See
+        # docs/decisions/2026-07-01-e07-dif-nested-strata-confound.md.
+        notes = [
+            "> Note: strata nest items (each item is in one stratum), so this matches quality "
+            "between nested item sets, not within shared items. If the strata differ in "
+            "quality, the conditioner correlates with the group and residual confounding "
+            "(DIF impurity) remains; read the effect size as screening evidence, not a "
+            "confound-free fairness verdict.",
+            "",
+            *notes,
+        ]
         # The convergence warning, the proportional-odds warning, and the panel-relative
         # note all sit ABOVE the statistics so a reader who excerpts the headline numbers
         # cannot drop them.
@@ -257,6 +273,7 @@ def audit(
     conditioner: Mapping[Hashable, float] | None = None,
     robust: bool = False,
     n_boot: int = 1000,
+    po_alpha: float = 1e-3,
 ) -> ReportCard:
     """Build the two-pillar report card.
 
@@ -275,11 +292,14 @@ def audit(
             conditioner=conditioner,
             n_boot=n_boot,
             seed=seed,
+            po_alpha=po_alpha,
         )
         dif = bootstrap.base
     else:
         bootstrap = None
-        dif = logistic_dif(ratings, focal=focal, reference=reference, conditioner=conditioner)
+        dif = logistic_dif(
+            ratings, focal=focal, reference=reference, conditioner=conditioner, po_alpha=po_alpha
+        )
     return ReportCard(
         alpha=krippendorff_alpha(ratings, level=level, seed=seed),
         icc=icc(ratings),
