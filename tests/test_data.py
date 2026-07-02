@@ -73,6 +73,15 @@ def test_duplicate_item_rater_cells_raise() -> None:
         Ratings.from_long(df, item="item", rater="rater", score="score", stratum="group")
 
 
+def test_wide_raises_on_duplicate_cells_built_directly() -> None:
+    # from_long guards duplicates, but Ratings.__init__ is reachable directly. wide() must
+    # not silently average a duplicate item-rater cell; pivot raises so the invariant holds.
+    df = pd.concat([_long(), _long().iloc[[0]]], ignore_index=True)
+    r = Ratings(df, item_col="item", rater_col="rater", score_col="score", stratum_col="group")
+    with pytest.raises(ValueError):
+        r.wide()
+
+
 def test_missing_stratum_values_raise() -> None:
     df = _long()
     df.loc[0, "group"] = None

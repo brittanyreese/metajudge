@@ -39,15 +39,16 @@ Output:
 
 ## Reliability
 - Krippendorff's alpha (ordinal): 0.723 [95% CI 0.418, 0.739]
-- ICC(2,1): 0.711; ICC(2,k): 0.880 (12 targets x 3 raters)
+- ICC(2,1): 0.711 [95% CI 0.418, 0.896]; ICC(2,k): 0.880 [95% CI 0.683, 0.963] (12 targets x 3 raters)
 
 ## DIF (panel-relative, rest-score conditioner)
-> Note: the rest-score conditioner cannot see bias shared across the entire rater panel, so this is panel-relative DIF, not an instrument-level fairness clearance. Pass a valid independent external quality conditioner; instrument-level interpretation requires it and holds only when the conditioner is valid, independent, and appropriate to the evaluation context.
+> Note: the rest-score conditioner cannot see bias shared across the entire rater panel, so this is panel-relative DIF, not an instrument-level fairness clearance. Pass a valid independent external quality conditioner for a stronger instrument-level analysis.
 
 - abstractive vs extractive (conditioner: rest_score, n=36)
-- Uniform DIF: chi2(1)=8.16, p=0.0043
-- Nonuniform DIF: chi2(1)=0.27, p=0.6060
 - Effect size (Nagelkerke R2 delta): 0.111 (Jodoin-Gierl class C)
+- Clustering-robust significance: not assessed. The analytic p-values below are anti-conservative under the crossed rater x item design; run audit(robust=True) or cluster_bootstrap_dif() for a clustering-robust flag.
+- Uniform DIF: chi2(1)=8.16, p=0.0043 [analytic, unclustered]
+- Nonuniform DIF: chi2(1)=0.27, p=0.6060 [analytic, unclustered]
 ```
 
 These numbers come from a synthetic fixture and illustrate the seam and the report-card format, not a finding about any clinical instrument.

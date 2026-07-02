@@ -139,11 +139,13 @@ class Ratings:
         )
 
     def wide(self) -> pd.DataFrame:
-        wide = self._long.pivot_table(
+        # pivot (not pivot_table) raises on duplicate item-rater cells rather than silently
+        # averaging them. from_long already rejects duplicates, but Ratings can be built
+        # directly, so this keeps the one-cell-per-pair invariant true on every path.
+        wide = self._long.pivot(
             index=self._item_col,
             columns=self._rater_col,
             values=self._score_col,
-            aggfunc="mean",
         )
         return wide.reindex(index=self.items, columns=self.raters)
 

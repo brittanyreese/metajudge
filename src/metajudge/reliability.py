@@ -8,6 +8,7 @@ from typing import Literal, cast
 import krippendorff as kd  # type: ignore[import-untyped]
 import numpy as np
 from numpy.typing import NDArray
+from scipy.stats import f as _f_dist  # type: ignore[import-untyped]
 
 from metajudge._constants import MIN_EFFECTIVE
 from metajudge.data import Ratings
@@ -62,6 +63,11 @@ def krippendorff_alpha(
     *Communication Methods and Measures*). Degenerate resamples (no ratable
     variation) are dropped; the realized replicate count is reported as
     ``AlphaResult.n_effective``, which is below ``n_bootstrap`` when that happens.
+
+    The resample draws units (columns) with replacement and holds the rater panel
+    fixed, so the CI reflects sampling of judged items, not sampling of raters. With
+    a small panel that you intend to generalize over, this understates uncertainty
+    about the panel itself.
     """
     matrix = ratings.coder_unit_matrix()
     lom = cast(_LevelOfMeasurement, level)
@@ -95,10 +101,21 @@ def krippendorff_alpha(
 
 @dataclass(frozen=True)
 class IccResult:
+    """ICC(2,1)/(2,k) with McGraw & Wong (1996) exact F-based confidence intervals.
+
+    ``icc1_ci_*``/``icck_ci_*`` are the 95% absolute-agreement limits (McGraw & Wong,
+    1996, *Psychological Methods*, Case 2). The ICC(2,k) interval is the Spearman-Brown
+    step-up of the ICC(2,1) bounds, matching pingouin's ``ICC(A,1)``/``ICC(A,k)``.
+    """
+
     icc1: float
     icck: float
     n_targets: int
     n_raters: int
+    icc1_ci_low: float
+    icc1_ci_high: float
+    icck_ci_low: float
+    icck_ci_high: float
 
 
 def icc(ratings: Ratings) -> IccResult:
@@ -137,4 +154,33 @@ def icc(ratings: Ratings) -> IccResult:
 
     icc1 = (ms_rows - ms_error) / (ms_rows + (k - 1) * ms_error + k * (ms_cols - ms_error) / n)
     icck = (ms_rows - ms_error) / (ms_rows + (ms_cols - ms_error) / n)
-    return IccResult(icc1=float(icc1), icck=float(icck), n_targets=n, n_raters=k)
+
+    # McGraw & Wong (1996) exact CI for the two-way random absolute-agreement ICC (Case 2).
+    # The estimated denominator df v makes this an approximation to an exact interval; it is
+    # the interval pingouin and the R irr package report for ICC(A,1)/ICC(A,k).
+    df1 = n - 1
+    df2 = (n - 1) * (k - 1)
+    fj = ms_cols / ms_error
+    # McGraw & Wong denominator df v: the numerator carries the k*icc*fj term, the
+    # denominator's second summand does not (the two expressions differ, see the paper).
+    base = n * (1.0 + (k - 1) * icc1) - k * icc1
+    num = k * icc1 * fj + base
+    v = df2 * num**2 / (df1 * (k * icc1 * fj) ** 2 + base**2)
+    f_u = float(_f_dist.ppf(0.975, df1, v))  # type: ignore[reportUnknownMemberType]
+    f_l = float(_f_dist.ppf(0.975, v, df1))  # type: ignore[reportUnknownMemberType]
+    mixed = k * ms_cols + (k * n - k - n) * ms_error
+    ci1_low = n * (ms_rows - f_u * ms_error) / (f_u * mixed + n * ms_rows)
+    ci1_high = n * (f_l * ms_rows - ms_error) / (mixed + n * f_l * ms_rows)
+    # ICC(2,k) limits are the Spearman-Brown step-up of the ICC(2,1) limits.
+    cik_low = ci1_low * k / (1.0 + ci1_low * (k - 1))
+    cik_high = ci1_high * k / (1.0 + ci1_high * (k - 1))
+    return IccResult(
+        icc1=float(icc1),
+        icck=float(icck),
+        n_targets=n,
+        n_raters=k,
+        icc1_ci_low=float(ci1_low),
+        icc1_ci_high=float(ci1_high),
+        icck_ci_low=float(cik_low),
+        icck_ci_high=float(cik_high),
+    )

@@ -6,6 +6,7 @@ from metajudge.dif import (
     ClusterBootstrapDif,
     DifResult,
     cluster_bootstrap_dif,
+    holm_adjust,
     logistic_dif,
 )
 from metajudge.reliability import AlphaResult, IccResult, icc, krippendorff_alpha
@@ -24,6 +25,7 @@ __all__ = [
     "__version__",
     "audit",
     "cluster_bootstrap_dif",
+    "holm_adjust",
     "icc",
     "krippendorff_alpha",
     "load_demo",
