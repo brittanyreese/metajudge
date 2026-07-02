@@ -50,6 +50,17 @@ def test_icc_matches_pingouin_oracle() -> None:
     assert res.icck == pytest.approx(float(table.loc["ICC(A,k)", "ICC"]), abs=1e-6)
 
 
+def test_icc_rejects_degenerate_dimensions() -> None:
+    # ICC(2,1)/(2,k) needs >=2 targets and >=2 raters; a single rater leaves the
+    # between-rater and error mean squares undefined (0/0). Refuse clearly rather than
+    # raise a bare ZeroDivisionError or emit nan.
+    wide = _shrout_fleiss_table()[["j1"]]  # one rater
+    r = _wide_to_ratings(wide)
+    with pytest.raises(ValueError) as exc:
+        icc(r)
+    assert "at least 2" in str(exc.value)
+
+
 def test_icc_rejects_missing_cells_with_cited_guidance() -> None:
     # Shrout-Fleiss ICC is defined on a complete crossed design. For incomplete /
     # partially-crossed data the correct estimand is a variance-components estimator

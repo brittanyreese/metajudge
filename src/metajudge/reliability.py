@@ -51,7 +51,7 @@ class AlphaResult:
 def krippendorff_alpha(
     ratings: Ratings,
     *,
-    level: str = "nominal",
+    level: str = "ordinal",
     n_bootstrap: int = 1000,
     seed: int = 0,
 ) -> AlphaResult:
@@ -116,6 +116,13 @@ def icc(ratings: Ratings) -> IccResult:
         )
     data = wide.to_numpy(dtype=float)  # targets x raters
     n, k = data.shape
+    if n < 2 or k < 2:
+        raise ValueError(
+            "ICC(2,1)/(2,k) is defined on a crossed design with at least 2 targets and 2 "
+            f"raters; got {n} targets x {k} raters. With a single target or rater the "
+            "between-rater and error mean squares are undefined (0/0), so no ICC exists to "
+            "report."
+        )
 
     grand = float(data.mean())
     row_means = data.mean(axis=1)
