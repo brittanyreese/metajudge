@@ -1,11 +1,6 @@
 # References
 
-The methods metajudge implements are credited to their original authors here.
-Every entry is carried verbatim from the decision record where the method was
-adopted; the per-method rationale and any caveats about applying a
-method outside its original validation live in [decisions/](decisions/). This
-file is the consolidated bibliography so the credits travel with the package
-rather than sitting only inside individual ADRs.
+The methods metajudge implements are credited to their original authors here. Every entry is carried verbatim from the decision record where the method was adopted; the per-method rationale and any caveats about applying a method outside its original validation live in [decisions/](decisions/). This file is the consolidated bibliography so the credits travel with the package rather than sitting only inside individual ADRs.
 
 ## Reliability: Krippendorff's alpha and ICC
 
@@ -121,15 +116,6 @@ Fabbri, A. R., Kryscinski, W., McCann, B., Xiong, C., Socher, R., and Radev, D. 
 
 ## Software and reference implementations
 
-The runtime alpha computation wraps the `krippendorff` Python package. The
-statistics are pinned in the test suite against external reference
-implementations: R `MASS::polr` for the proportional-odds DIF fit, and the
-`pingouin` and `statsmodels` Python packages as ICC and logistic-regression
-oracles. `pingouin` and `statsmodels` are test-only oracles and are never
-imported at runtime.
+The runtime alpha computation wraps the `krippendorff` Python package. The statistics are pinned in the test suite against external reference implementations: R `MASS::polr` for the proportional-odds DIF fit, and the `pingouin` and `statsmodels` Python packages as ICC and logistic-regression oracles. `pingouin` and `statsmodels` are test-only oracles and are never imported at runtime.
 
-AutoRubric: a Python library for rubric-based LLM-as-judge grading with
-agreement metrics and bootstrap confidence intervals (https://autorubric.org,
-https://github.com/delip/autorubric). Adjacent, shipped practitioner coverage
-of the commodity reliability layer; cited in SPEC.md as prior art this
-library does not compete with.
+AutoRubric: a Python library for rubric-based LLM-as-judge grading with agreement metrics and bootstrap confidence intervals ([https://autorubric.org](https://autorubric.org), [https://github.com/delip/autorubric](https://github.com/delip/autorubric)). Adjacent, shipped practitioner coverage of the commodity reliability layer; cited in SPEC.md as prior art this library does not compete with.
