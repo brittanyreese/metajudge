@@ -22,6 +22,7 @@ Full conventions are in [CONTRIBUTING.md](CONTRIBUTING.md). In short:
 
 - Conventional Commits. One logical change per commit; keep formatting-only changes in their own `style:` commit (never bundle a repo-wide reformat into a feature commit).
 - Trunk-based: `main` stays green and releasable. Small changes go straight to `main`; non-trivial work uses a short-lived branch merged back promptly so `main` never goes stale.
+- `main` is branch-protected: PRs required (no direct push, including admins), CI green across the 3.11/3.12/3.13 matrix, linear history, squash-merge only.
 - Pre-commit and CI must pass before merging to `main`.
 - Never commit scaffolding or secrets; the pre-commit guard (`scripts/check_no_scaffolding.sh`) blocks them. `AGENTS.md` is the shareable context; the gitignored `CLAUDE.md` is private.
 - Tag releases `vX.Y.Z`. For any reported number, tag the exact commit that produced it so it is citeable.
@@ -39,16 +40,9 @@ Python 3.11+ (CI matrix 3.11/3.12/3.13). Strict pyright over `src` and `tests`. 
 
 ## Binding rules (do not violate)
 
-- Numerical correctness is non-compressible (SPEC R19). A wrong DIF or alpha is reputational damage. Test every statistic against a pinned external reference (the `krippendorff` package, R `irr`/`TAM` fixtures, statsmodels), not just internal consistency. Never cut the rigor pass to save time.
+- Numerical correctness is non-compressible (SPEC R19): a wrong DIF or alpha is reputational damage. Test every statistic against a pinned external reference (the `krippendorff` package, R `irr`/`TAM` fixtures, statsmodels) before implementing: write the reference-value assertions first, watch them fail, then implement until they pass. When a reference and a literal disagree, the reference wins; tolerances are never loosened to pass.
 - Runtime dependencies are limited to `numpy`, `pandas`, `scipy`, `krippendorff`. Any addition is justified in the PR. `pingouin` and `statsmodels` are dev/test oracles only, never runtime imports.
 - Type hints on every public function, explicit return types (pyright runs strict). No bare `except`, no mutable default args, no `import *`.
-- Test-first for every feature and fix. For a stats function the failing-test target is a pinned external reference value, not internal consistency: write the reference-value assertions against a known oracle up front, watch them fail, then implement until they pass.
-- Git: Conventional Commits.
-
-## Gotchas
-
-- The numerical-reference convention is the shape of the test loop here. When a reference value and a literal disagree, the reference wins and the literal is corrected; assertion tolerances are not loosened to make a test pass.
-- `--cov` is wired into pytest `addopts`, so a bare `uv run pytest` already produces coverage.
 
 ## Methods are provisional
 
