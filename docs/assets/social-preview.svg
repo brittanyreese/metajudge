@@ -8,16 +8,16 @@
   <rect width="1280" height="640" fill="url(#bg)"/>
   <rect x="0" y="0" width="12" height="640" fill="#3fb0d8"/>
 
-  <text x="88" y="180" font-family="'DejaVu Sans', Arial, Helvetica, sans-serif" font-size="100" font-weight="bold" fill="#f4f6f8">metajudge</text>
-  <text x="92" y="238" font-family="'DejaVu Sans', Arial, Helvetica, sans-serif" font-size="32" fill="#9aa7b4">A reliability and DIF report card for LLM-judge and rater-panel scores.</text>
-  <rect x="92" y="272" width="120" height="4" fill="#3fb0d8"/>
+  <text x="88" y="168" font-family="'DejaVu Sans', Arial, Helvetica, sans-serif" font-size="92" font-weight="bold" fill="#f4f6f8">metajudge</text>
+  <text x="92" y="222" font-family="'DejaVu Sans', Arial, Helvetica, sans-serif" font-size="30" fill="#9aa7b4">A reliability and DIF report card for LLM-judge and rater-panel scores.</text>
+  <rect x="92" y="254" width="120" height="4" fill="#3fb0d8"/>
 
-  <text x="92" y="366" font-family="'DejaVu Sans', Arial, Helvetica, sans-serif" font-size="28" fill="#cdd6df">Krippendorff alpha, ICC(2,1) / (2,k), and Zumbo / Jodoin-Gierl DIF.</text>
+  <text x="92" y="326" font-family="'DejaVu Sans', Arial, Helvetica, sans-serif" font-size="27" fill="#cdd6df">Krippendorff alpha, ICC(2,1) / (2,k), and Zumbo / Jodoin-Gierl DIF.</text>
 
-  <rect x="88" y="424" width="1104" height="70" rx="12" fill="#131c28" stroke="#243343" stroke-width="1.5"/>
-  <text x="116" y="467" font-family="'DejaVu Sans Mono', 'Menlo', monospace" font-size="21" fill="#8b98a5"># report card</text>
-  <text x="300" y="467" font-family="'DejaVu Sans Mono', 'Menlo', monospace" font-size="21" fill="#cdd6df">alpha <tspan fill="#e6edf3">0.554</tspan>   ICC(2,1) <tspan fill="#e6edf3">0.573</tspan>   ICC(2,k) <tspan fill="#e6edf3">0.801</tspan>   DIF <tspan fill="#7fd4a8">class A</tspan></text>
+  <rect x="88" y="376" width="1104" height="66" rx="12" fill="#131c28" stroke="#243343" stroke-width="1.5"/>
+  <text x="116" y="417" font-family="'DejaVu Sans Mono', 'Menlo', monospace" font-size="21" fill="#8b98a5"># report card</text>
+  <text x="300" y="417" font-family="'DejaVu Sans Mono', 'Menlo', monospace" font-size="21" fill="#cdd6df">alpha <tspan fill="#e6edf3">0.554</tspan>   ICC(2,1) <tspan fill="#e6edf3">0.573</tspan>   ICC(2,k) <tspan fill="#e6edf3">0.801</tspan>   DIF <tspan fill="#7fd4a8">class A</tspan></text>
 
-  <text x="92" y="574" font-family="'DejaVu Sans Mono', 'Menlo', monospace" font-size="26" fill="#8b98a5">pip install metajudge</text>
-  <text x="92" y="608" font-family="'DejaVu Sans', Arial, Helvetica, sans-serif" font-size="20" fill="#5c6b78">Python 3.11+  .  MIT  .  tested against R polr and pingouin  .  github.com/brittanyreese/metajudge</text>
+  <text x="92" y="500" font-family="'DejaVu Sans Mono', 'Menlo', monospace" font-size="25" fill="#8b98a5">pip install metajudge</text>
+  <text x="92" y="536" font-family="'DejaVu Sans', Arial, Helvetica, sans-serif" font-size="19" fill="#5c6b78">Python 3.11+  .  MIT  .  tested against R polr and pingouin  .  github.com/brittanyreese/metajudge</text>
 </svg>
