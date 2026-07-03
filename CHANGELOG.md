@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-07-03
+
+### Changed
+
+- Documentation and release metadata only, no code changes since 0.2.0: the AI-assistance note now leads with external-oracle validation, the citation metadata carries an ORCID, and the release is archived on Zenodo.
+
 ## [0.2.0] - 2026-07-02
 
 ### Added
@@ -61,6 +67,7 @@ First public release: the E07 two-pillar report card. A pip-installable layer th
 
 - Every statistic is pinned to an external reference: Krippendorff's alpha against the `krippendorff` package, ICC against the Shrout-Fleiss worked example and `pingouin`, and DIF against R `MASS::polr` with a `statsmodels` cross-check in the two-category limit. `pingouin` and `statsmodels` are test oracles only, never runtime imports.
 
-[Unreleased]: https://github.com/brittanyreese/metajudge/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/brittanyreese/metajudge/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/brittanyreese/metajudge/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/brittanyreese/metajudge/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/brittanyreese/metajudge/releases/tag/v0.1.0

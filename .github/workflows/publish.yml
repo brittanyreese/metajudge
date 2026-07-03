@@ -32,6 +32,8 @@ jobs:
           MKL_NUM_THREADS: "1"
       - run: uv build
       - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true # re-pushed existing-version tags skip instead of failing
   testpypi:
     # TestPyPI dry-run: manual only, to rehearse the upload before the real tag.
     if: github.event_name == 'workflow_dispatch'

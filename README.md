@@ -200,4 +200,4 @@ MIT. See [LICENSE](https://github.com/brittanyreese/metajudge/blob/main/LICENSE)
 
 Every choice that changes the build is a dated, cited ADR. The curated index of what was decided and why is [docs/DECISIONS.md](https://github.com/brittanyreese/metajudge/blob/main/docs/DECISIONS.md): the ordinal-DIF engine, the ICC refusal on incomplete data, and the SummEval corpus lock. The why-this-build context is in [docs/PROVENANCE.md](https://github.com/brittanyreese/metajudge/blob/main/docs/PROVENANCE.md), and the full records live in [docs/decisions/](https://github.com/brittanyreese/metajudge/tree/main/docs/decisions/).
 
-The project is developed with AI assistance; [CONTRIBUTING](https://github.com/brittanyreese/metajudge/blob/main/CONTRIBUTING.md#ai-assistance) describes the gates every change passes.
+Built with AI coding tools under the review, testing, and external-oracle validation gates in [CONTRIBUTING](https://github.com/brittanyreese/metajudge/blob/main/CONTRIBUTING.md#ai-assistance). The maintainer makes the design decisions and validates every result against those references.
