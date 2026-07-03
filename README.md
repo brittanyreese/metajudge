@@ -8,6 +8,7 @@ Audit a scoring instrument, an LLM-as-judge or a human rater panel, before you t
 ![Coverage](https://img.shields.io/badge/coverage-%E2%89%A595%25-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21162713.svg)](https://doi.org/10.5281/zenodo.21162713)
 
 An LLM judge or scoring rubric is a measurement instrument. Before you report its numbers, you want to know whether the raters agree, whether scores function differently between output types, and how large any difference is. `metajudge` answers those questions with a one-screen screening report card.
 
