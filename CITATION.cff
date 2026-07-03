@@ -10,7 +10,8 @@ type: software
 authors:
   - given-names: Brittany Reese
     family-names: Markides
-version: 0.2.0
+    orcid: "https://orcid.org/0000-0001-6242-0842"
+version: 0.2.1
 license: MIT
 repository-code: "https://github.com/brittanyreese/metajudge"
 url: "https://github.com/brittanyreese/metajudge"
