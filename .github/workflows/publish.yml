@@ -23,7 +23,13 @@ jobs:
       - run: uv run pyright
       # Releases run the full rigor suite (slow operating-characteristics tests +
       # live R oracle provenance), not just the fast PR suite.
-      - run: uv run pytest --run-slow -n auto # distribute slow cells across cores (pytest-xdist)
+      # -n auto + BLAS thread caps: see rigor.yml for why the caps are load-bearing
+      # (without them xdist workers oversubscribe the cores and gain ~nothing).
+      - run: uv run pytest --run-slow -n auto
+        env:
+          OMP_NUM_THREADS: "1"
+          OPENBLAS_NUM_THREADS: "1"
+          MKL_NUM_THREADS: "1"
       - run: uv build
       - uses: pypa/gh-action-pypi-publish@release/v1
   testpypi:

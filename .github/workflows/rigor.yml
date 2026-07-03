@@ -17,7 +17,16 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - uses: r-lib/actions/setup-r@v2 # MASS ships with base R; enables the polr oracle refit
       - run: uv sync
-      # -n auto: distribute the slow cells across runner cores (pytest-xdist).
-      # CPU-bound and reproducible (each replication is independently seeded), so
-      # workers produce bit-identical results. Speedup is capped by runner cores.
+      # -n auto distributes the slow cells across runner cores (pytest-xdist).
+      # The BLAS thread caps are load-bearing: without them numpy/scipy already
+      # spread each fit across both cores, so the xdist workers just oversubscribe
+      # and gain ~nothing. Pinning BLAS to one thread gives each worker a real core
+      # (genuine ~2x on the 2-core runner) and makes the fits single-threaded, which
+      # is also more reproducible. The matrices are small, so per-fit BLAS
+      # parallelism was worth little anyway. Reps are independently seeded, so
+      # workers stay bit-identical to the serial run.
       - run: uv run pytest --run-slow -n auto
+        env:
+          OMP_NUM_THREADS: "1"
+          OPENBLAS_NUM_THREADS: "1"
+          MKL_NUM_THREADS: "1"
