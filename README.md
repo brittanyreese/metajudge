@@ -3,6 +3,7 @@
 Audit a scoring instrument, an LLM-as-judge or a human rater panel, before you trust its numbers.
 
 [![CI](https://github.com/brittanyreese/metajudge/actions/workflows/ci.yml/badge.svg)](https://github.com/brittanyreese/metajudge/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/metajudge)](https://pypi.org/project/metajudge/)
 ![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)
 ![Coverage](https://img.shields.io/badge/coverage-%E2%89%A595%25-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -16,12 +17,23 @@ It complements the ground-truth side of LLM evaluation (accuracy benchmarks, IRT
 
 Every statistic is checked against an external reference implementation (see [Numerical correctness](#numerical-correctness)). [docs/PROVENANCE.md](https://github.com/brittanyreese/metajudge/blob/main/docs/PROVENANCE.md) records why the project exists and why the build took this shape.
 
+```mermaid
+flowchart LR
+    R["Ratings<br/>rater × item × stratum<br/>ordinal scores"]
+    R --> REL["Reliability<br/>Krippendorff α<br/>ICC(2,1) / (2,k)"]
+    R --> DIF["DIF<br/>ordinal logistic regression<br/>Jodoin-Gierl A/B/C"]
+    REL --> C["ReportCard<br/>one-screen audit<br/>with caveats above the numbers"]
+    DIF --> C
+```
+
+One long-format data model feeds two pillars, and both render into a single report card.
+
 ## Try it on the demo
 
 The library ships a real corpus (SummEval expert coherence), so the example below runs end to end after [install](#install):
 
 ```bash
-pip install git+https://github.com/brittanyreese/metajudge@main
+pip install metajudge
 python -c "from metajudge import load_demo, audit; print(audit(load_demo(), focal='abstractive', reference='extractive').to_markdown())"
 ```
 
@@ -61,7 +73,21 @@ It prints the report card below, with the live numbers exactly as the command pr
 
 ## How to read the report card
 
-Reliability rests on two measures, Krippendorff's alpha and ICC. Both rise when raters converge: alpha is a chance-corrected agreement coefficient, ICC a variance-ratio reliability coefficient (the share of score variance that is rater-consistent signal). Krippendorff treats alpha at or above 0.80 as reliable and the 0.667 to 0.80 band as good only for tentative conclusions, so the demo's 0.554 sits below even that floor: these coherence scores are only marginally reliable, which is the kind of result this tool exists to surface. ICC(2,k) is higher than ICC(2,1) because averaging three raters cancels some of the per-rater noise. The reliability estimators assume a complete crossed design; on a matrix with missing cells `icc` refuses and names the estimator that does handle incomplete data, rather than returning a number it cannot defend. The reasoning is recorded as a dated ADR.
+### Reliability
+
+Reliability rests on two measures, Krippendorff's alpha and ICC. Both rise when raters converge: alpha is a chance-corrected agreement coefficient, ICC a variance-ratio reliability coefficient (the share of score variance that is rater-consistent signal). ICC(2,k) is higher than ICC(2,1) because averaging three raters cancels some of the per-rater noise.
+
+Krippendorff's bands put the demo's 0.554 below even the tentative floor, so these coherence scores are only marginally reliable, which is the kind of result this tool exists to surface:
+
+| Krippendorff α | Reading |
+|---|---|
+| ≥ 0.80 | Reliable |
+| 0.667 to 0.80 | Tentative conclusions only |
+| < 0.667 | Marginal (the demo's 0.554 lands here) |
+
+The reliability estimators assume a complete crossed design. On a matrix with missing cells `icc` refuses and names the estimator that does handle incomplete data, rather than returning a number it cannot defend. The reasoning is recorded as a dated ADR.
+
+### DIF
 
 DIF, differential item functioning, asks whether the panel scores abstractive outputs differently from extractive outputs once you condition on the rest-score proxy for overall quality. The "item" under audit is the rubric criterion rather than a shared test item, since each stratum scores different outputs. The engine is ordinal logistic regression in the Zumbo tradition (single-pass, not lordif's iterative purification), run as three nested proportional-odds models, so it reports a uniform-DIF test, a nonuniform-DIF test, and an effect size (the Nagelkerke pseudo-R-squared change) classified A, B, or C by the Jodoin-Gierl thresholds. The demo shows why the card prints both a p-value and an effect size: at n = 4800 the uniform-DIF test is significant (p = 0.0005), but the effect size is 0.002, class A, which is negligible. The signal is detectable; the magnitude is not.
 
@@ -71,7 +97,7 @@ The matching variable is a leave-one-rater-out rest score across the three exper
 
 To audit a real instrument, point metajudge at the output of an existing judge runner. `Ratings.from_eval_instruments` maps the per-judge score frames produced by Epic's [`evaluation-instruments`](https://github.com/epic-open-source/evaluation-instruments) (`frame_from_evals`) into the `Ratings` the audit consumes: rater is judge, item is sample, score is one rubric criterion. It is a local DataFrame transform that adds no dependency. A runnable, no-PHI walkthrough is in [docs/interop-epic.md](https://github.com/brittanyreese/metajudge/blob/main/docs/interop-epic.md).
 
-For a self-contained, end-to-end example that builds the judge panel itself, [`examples/audit_llm_judge.py`](https://github.com/brittanyreese/metajudge/blob/main/examples/audit_llm_judge.py) runs three LLM judges over 16 stratified summaries and prints the report card. Install with `pip install "metajudge[examples] @ git+https://github.com/brittanyreese/metajudge@main"`. Then pick a mode: `--mode live --provider gemini` calls Gemini models on a billed project (`GOOGLE_AI_API_KEY`); `--mode live --provider openrouter` calls free-tier OpenRouter models (`OPENROUTER_API_KEY`, capacity not guaranteed); `--mode offline` runs a seeded simulation with no key or network.
+For a self-contained, end-to-end example that builds the judge panel itself, [`examples/audit_llm_judge.py`](https://github.com/brittanyreese/metajudge/blob/main/examples/audit_llm_judge.py) runs three LLM judges over 16 stratified summaries and prints the report card. Install with `pip install "metajudge[examples]"`. Then pick a mode: `--mode live --provider gemini` calls Gemini models on a billed project (`GOOGLE_AI_API_KEY`); `--mode live --provider openrouter` calls free-tier OpenRouter models (`OPENROUTER_API_KEY`, capacity not guaranteed); `--mode offline` runs a seeded simulation with no key or network.
 
 This is what a real LLM panel looks like through the same card (a live Gemini run, committed as [`examples/sample_output_llm.txt`](https://github.com/brittanyreese/metajudge/blob/main/examples/sample_output_llm.txt); at 16 items it is a format demonstration, not a study):
 
@@ -89,7 +115,12 @@ Judges: 3 | Items: 16 (extractive vs abstractive) | Score: coherence 1-5
 - Cluster-robust R2 delta CI: [0.000, 0.006] (n_effective=178 of 200)
 ```
 
-The contrast with the human panel above is the point: three Gemini judges agree with each other almost perfectly (alpha 0.993 versus the human experts' 0.554), and near-perfect agreement is exactly when the reliability caveat matters most. A panel can be unanimous and still be unanimously wrong about the construct.
+| Panel | Krippendorff α | ICC(2,1) | ICC(2,k) |
+|---|---|---|---|
+| Human experts (SummEval, n=1600) | 0.554 | 0.573 | 0.801 |
+| Gemini judges (n=16) | 0.993 | 0.991 | 0.997 |
+
+The contrast is the point: three Gemini judges agree with each other almost perfectly, while the human experts reach only 0.554, and near-perfect agreement is exactly when the reliability caveat matters most. A panel can be unanimous and still be unanimously wrong about the construct.
 
 ## Cluster-robust DIF confidence intervals
 
@@ -121,7 +152,11 @@ One dependence axis remains unhandled: resampling item blocks preserves the cros
 
 ## Install
 
-Not yet published to PyPI; install from source:
+```bash
+pip install metajudge
+```
+
+Or install the latest unreleased main from source:
 
 ```bash
 pip install git+https://github.com/brittanyreese/metajudge@main
