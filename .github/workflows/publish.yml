@@ -23,7 +23,7 @@ jobs:
       - run: uv run pyright
       # Releases run the full rigor suite (slow operating-characteristics tests +
       # live R oracle provenance), not just the fast PR suite.
-      - run: uv run pytest --run-slow
+      - run: uv run pytest --run-slow -n auto # distribute slow cells across cores (pytest-xdist)
       - run: uv build
       - uses: pypa/gh-action-pypi-publish@release/v1
   testpypi:
