@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-02
+
 ### Added
 
 - Operating-characteristics study for the DIF pillar (`docs/sim-operating-characteristics.md`, raw draws in `sim/results/`, runner `scripts/run_oc_study.py`): baseline Type-I/power, cluster-stress cells showing the analytic test does not inflate in this crossed design, PO-violation robustness, a power curve, an unbalanced-groups check, and the conditioner-overlap calibration curve. Simulation harness gains per-replication overlap diagnostics and unbalanced-group support (`DgpParams.n_items_focal`).
@@ -59,5 +61,6 @@ First public release: the E07 two-pillar report card. A pip-installable layer th
 
 - Every statistic is pinned to an external reference: Krippendorff's alpha against the `krippendorff` package, ICC against the Shrout-Fleiss worked example and `pingouin`, and DIF against R `MASS::polr` with a `statsmodels` cross-check in the two-category limit. `pingouin` and `statsmodels` are test oracles only, never runtime imports.
 
-[Unreleased]: https://github.com/brittanyreese/metajudge/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/brittanyreese/metajudge/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/brittanyreese/metajudge/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/brittanyreese/metajudge/releases/tag/v0.1.0
