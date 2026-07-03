@@ -26,10 +26,9 @@ sidecars), `data/processed-judge-audit/` (`verified_chunks.jsonl`,
 | Claims verdict: **can't-verify** (no local text or evidence truncation) | 20 |
 
 **Every claim that could be checked against real, extracted paper text held up.** No
-citation was found to misrepresent, overstate, or fabricate what its source paper
-says. The `can't-verify` claims are entirely a function of acquisition gaps (8
-paywalled papers with no accessible full text, plus one truncated large textbook
-excerpt) — not fidelity failures.
+citation misrepresents, overstates, or fabricates what its source paper says. The
+`can't-verify` claims trace to acquisition gaps only: 8 paywalled papers with no
+accessible full text, plus one truncated textbook excerpt. Not fidelity failures.
 
 ## Method
 
@@ -40,16 +39,16 @@ excerpt) — not fidelity failures.
    Unpaywall/CORE/BASE); 1 (Krippendorff 2004) is a Sage book with no OA PDF possible
    by design.
 2. **Ingestion**: `citepipe run --corpus data/judge-audit-corpus --output
-   data/processed-judge-audit` — format-specific extraction with source anchors
+   data/processed-judge-audit`, format-specific extraction with source anchors
    (page/bbox), SHA-256 tracking, and Jaccard quote-match verification (>= 0.7)
    against the source PDF. 100% of non-quarantined chunks verified; one file
-   (Cortina 1993) quarantined as a scanned image with no text layer (citepipe does
-   not OCR).
-3. **Claim extraction**: read every usage site — the 7 ADRs in `docs/decisions/`,
+   (Cortina 1993) quarantined as a scanned image with no text layer (citepipe
+   does not OCR).
+3. **Claim extraction**: read every usage site, the 7 ADRs in `docs/decisions/`,
    `SPEC.md`, the 3 `research/*.md` notes, and `docs/REFERENCES.md`'s own
-   parenthetical rationale annotations — for specific, checkable assertions
-   attributed to a citation (a finding, a threshold, a methodological warrant), not
-   bare bibliography-list entries.
+   parenthetical rationale, for specific, checkable assertions attributed to a
+   citation (a finding, a threshold, a methodological warrant), not bare
+   bibliography-list entries.
 4. **Verdict**: each claim was checked against the cited paper's actual extracted
    text (deduplicated; the raw pipeline output carried ~5x chunk redundancy from
    per-worker re-chunking, collapsed before comparison) and marked `supported`,
@@ -107,37 +106,36 @@ excerpt) — not fidelity failures.
 | xu-etal-2025-fairness-irt | Xu, Z., Kandanaarachchi, S., Ong, C. S., Ntoutsi, E. | 2025 | staged | verified | supported (1) |
 | choi-etal-2026-irt-judge | Choi, J., et al. | 2026 | staged | verified | supported (2) |
 | fabbri-etal-2020-summeval | Fabbri, A. R., et al. | 2020 | staged | verified | supported (1) |
-| autorubric-software | AutoRubric | — | software, not a paper | n/a (existence via URL) | can't-verify (1) |
+| autorubric-software | AutoRubric | n/a | software, not a paper | n/a (existence via URL) | can't-verify (1) |
 
 ## Acquisition-failed citations (no local full text)
 
 Nine citations have no accessible full text; every one is documented, none is a
 silent gap:
 
-- **ebel-1951** — paywalled, no OA copy found.
-- **nakagawa-schielzeth-2010** — paywalled, no OA copy found.
-- **clauser-etal-1993** — paywalled; an interlibrary-loan request is outstanding
+- **ebel-1951**: paywalled, no OA copy found.
+- **nakagawa-schielzeth-2010**: paywalled, no OA copy found.
+- **clauser-etal-1993**: paywalled; an interlibrary-loan request is outstanding
   (submitted by the user during acquisition).
-- **cronbach-1951** — paywalled, no OA copy found.
-- **cortina-1993** — PDF was staged, but it is a scanned image with no text layer;
+- **cronbach-1951**: paywalled, no OA copy found.
+- **cortina-1993**: PDF was staged, but it is a scanned image with no text layer;
   citepipe does not OCR, so it quarantined rather than fabricate extracted text.
-- **brennan-2001** — paywalled; Zotero's auto find-pdf attached the wrong document
+- **brennan-2001**: paywalled; Zotero's auto find-pdf attached the wrong document
   (an NCME instructional module by the same author, mislabeled with the correct
-  chapter title) during acquisition — deleted; no legitimate PDF exists locally.
-- **lim-2011** — paywalled, no OA copy found.
-- **mcneish-2018** — paywalled, no OA copy found.
-- **li-2022** — paywalled, no OA copy found.
-- **krippendorff-2004** — a Sage book; no OA PDF possible by design (`fetchability:
+  chapter title) during acquisition, then deleted; no legitimate PDF exists locally.
+- **lim-2011**: paywalled, no OA copy found.
+- **mcneish-2018**: paywalled, no OA copy found.
+- **li-2022**: paywalled, no OA copy found.
+- **krippendorff-2004**: a Sage book; no OA PDF possible by design (`fetchability:
   book-no-oa-pdf-expected` in the manifest).
 
-Two wrong-paper substitutions were caught and rejected during acquisition, worth
-recording since they show the acquisition process actively guarded against
-mis-grounding: (1) a `Slocum_Gelin_Zumbo.pdf` that shared an author but was not
-the actual Zumbo (1999) report (fixed with the real handbook); (2) Zotero's
-auto-find-pdf mis-attaching an NCME instructional module to Brennan (2001) (see
-above). A third candidate (Fidler 2013, "Mantel-Haenszel Procedure Revisited"),
-proposed by the user as a possible substitute for Clauser et al. (1993), was
-correctly rejected as a different paper backing a different claim.
+Two wrong-paper substitutions were caught and rejected during acquisition: (1) a
+`Slocum_Gelin_Zumbo.pdf` that shared an author but was not the actual Zumbo
+(1999) report, fixed with the real handbook; (2) Zotero's auto-find-pdf
+mis-attaching an NCME instructional module to Brennan (2001), above. A third
+candidate (Fidler 2013, "Mantel-Haenszel Procedure Revisited"), proposed by the
+user as a substitute for Clauser et al. (1993), was correctly rejected as a
+different paper backing a different claim.
 
 ## Claim-fidelity findings
 
@@ -145,24 +143,24 @@ correctly rejected as a different paper backing a different claim.
 matched what the paper actually says, including the claims carrying the most
 methodological weight:
 
-- The cluster-bootstrap ADR's core empirical claim — French & Finch (2010) showing
+- The cluster-bootstrap ADR's core empirical claim, that French & Finch (2010) show
   single-level logistic-regression DIF fails to hold the nominal .05 Type-I rate
-  under between-cluster grouping while a hierarchical model restores it — is quoted
+  under between-cluster grouping while a hierarchical model restores it, is quoted
   verbatim in the source.
-- SPEC.md's SC2 prior-art re-check claim — that Choi et al. (2026) explicitly defers
-  DIF-style stratum comparisons to future work — matches the paper's own limitations
+- SPEC.md's SC2 prior-art re-check claim, that Choi et al. (2026) explicitly defers
+  DIF-style stratum comparisons to future work, matches the paper's own limitations
   section word for word.
 - The Jodoin-Gierl (2001) 0.035/0.070 Nagelkerke ΔR² A/B/C bands, French & Maller
   (2007)'s finding that purification doesn't substantially improve DIF power/Type-I,
   and Crane et al. (2006)'s use of a Brant test before interpreting DIF interactions
   all check out exactly against source text.
 
-The 20 `can't-verify` verdicts break down as: 15 claims whose citation has no local
+The 20 `can't-verify` verdicts break down as 15 claims whose citation has no local
 extracted text (the 9 acquisition-failed citations above), plus 5 claims where the
 citation's evidence text exists but the specific detail checked (e.g., a Harrell
 2015 textbook passage, lordif's exact default flag value) fell outside the portion
-of a large source retrieved for comparison. None of these represent a contradiction
-— they represent verification limits, not fidelity failures.
+of a large source retrieved for comparison. None of these are a contradiction:
+they are verification limits, not fidelity failures.
 
 ## Documentation-hygiene findings (defect resolutions)
 
@@ -170,26 +168,26 @@ The prior manual review (`docs/reviews/2026-07-02-multi-persona-review.md`) flag
 four items, all now resolved, plus this audit surfaced one additional defect of the
 same class:
 
-- **A5** (`docs/DECISIONS.md` indexed only 4 of 7 ADRs) — **fixed** directly
+- **A5** (`docs/DECISIONS.md` indexed only 4 of 7 ADRs): **fixed** directly
   (confirmed: all 7 ADRs now indexed).
 - **A6** (phantom ADR cross-reference in the nested-strata-confound ADR to a
-  nonexistent file) — **fixed** directly; the ADR now points to the real section
-  (`2026-06-22-e07-dif-ordinal-logistic-regression.md`, lines 32-66) — confirmed by
-  reading the current file.
+  nonexistent file): **fixed** directly; the ADR now points to the real section
+  (`2026-06-22-e07-dif-ordinal-logistic-regression.md`, lines 32-66), confirmed
+  by reading the current file.
 - **A7** (orphan "Finch et al. (2025)" citation in the cluster-bootstrap ADR,
-  absent from `REFERENCES.md`) — **fixed**; the current text cites only French &
+  absent from `REFERENCES.md`): **fixed**; the current text cites only French &
   Finch (2010), which is fully corpus-verified and its claim confirmed supported.
   The orphan reference was dropped rather than fabricated, per the project's own
   stated resolution.
 - **R2** (re-verify fl-IRT-ing/Bachmann 2024, Fair-IRT/Xu 2025, Choi 2026, Wang
-  2023, Bavaresco 2024 claims) — **resolved** as a byproduct of this audit: all five
-  citations' claims in `SPEC.md` and `docs/REFERENCES.md` are `supported`.
+  2023, Bavaresco 2024 claims): **resolved** as a byproduct of this audit: all
+  five citations' claims in `SPEC.md` and `docs/REFERENCES.md` are `supported`.
 - **New finding (this audit): phantom bibliography entry.** The nested-strata-confound
-  ADR's own References section listed "Shealy, R., and Stout, W. (1993)" — never
+  ADR's own References section listed "Shealy, R., and Stout, W. (1993)", never
   cited in the ADR's body text, and absent from the master `docs/REFERENCES.md`
   bibliography (grep-confirmed: zero hits across all 48 entries). Same defect class
   as A7. **Fixed**: dropped from the ADR's References section (not fabricated into
-  `REFERENCES.md`), matching the project's own precedent for exactly this situation.
+  `REFERENCES.md`), matching the project's own precedent for this situation.
 
 ## Reproducing this audit
 
@@ -205,4 +203,4 @@ uv run citepipe run --corpus data/judge-audit-corpus \
 `data/judge-audit-corpus.manifest.json` is the acquisition ledger;
 `data/judge-audit-corpus/verdicts.jsonl` is the full claim-level audit trail (66
 rows: `citation_key`, `claim_text`, `source_file`, `source_line`, `verdict`, `note`).
-Both pipelines are resumable — re-running skips completed files/claims.
+Both pipelines are resumable: re-running skips completed files/claims.

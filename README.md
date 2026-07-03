@@ -1,6 +1,6 @@
 # metajudge
 
-Audit a scoring instrument, an LLM-as-judge or a human rater panel, before you trust its numbers.
+A reliability and DIF report card for LLM-judge and human-rater scoring instruments.
 
 [![CI](https://github.com/brittanyreese/metajudge/actions/workflows/ci.yml/badge.svg)](https://github.com/brittanyreese/metajudge/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/metajudge)](https://pypi.org/project/metajudge/)
@@ -10,13 +10,9 @@ Audit a scoring instrument, an LLM-as-judge or a human rater panel, before you t
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21162713.svg)](https://doi.org/10.5281/zenodo.21162713)
 
-An LLM judge or scoring rubric is a measurement instrument. Before you report its numbers, you want to know whether the raters agree, whether scores function differently between output types, and how large any difference is. `metajudge` answers those questions with a one-screen screening report card.
+An LLM judge or scoring rubric is a measurement instrument. Before you report its scores, you want to know whether the raters agree, whether they score some output types differently, and how large any gap is. `metajudge` prints a one-screen report card that answers those questions for any multi-rater ordinal panel, LLM judges or human annotators. It audits the scoring instrument, not the model under test.
 
-The statistics are rater-agnostic: `metajudge` audits any multi-rater ordinal panel, whether the raters are LLM judges or human annotators. It audits the scoring instrument, not the model under test.
-
-It complements the ground-truth side of LLM evaluation (accuracy benchmarks, IRT-over-judges), which needs a gold label per item. `metajudge` instead works on *subjective* ordinal scores (coherence, helpfulness, quality), where no gold label exists and the question is whether the instrument is reliable and whether its scores function consistently across output strata.
-
-Every statistic is checked against an external reference implementation (see [Numerical correctness](#numerical-correctness)). [docs/PROVENANCE.md](https://github.com/brittanyreese/metajudge/blob/main/docs/PROVENANCE.md) records why the project exists and why the build took this shape.
+It works on subjective ordinal scores (coherence, helpfulness, quality) where no gold label exists, so it complements gold-label evaluation (accuracy benchmarks, IRT-over-judges) rather than competing with it. Every statistic is checked against an external reference implementation (see [Numerical correctness](#numerical-correctness)).
 
 ```mermaid
 flowchart LR
@@ -177,7 +173,7 @@ uv run pyright        # strict type-check
 
 ## Numerical correctness
 
-Every statistic is pinned to an external reference, not to internal consistency alone. A wrong reliability or DIF number is a wrong answer, so each test asserts against a value a trusted tool produced:
+Every statistic is tested against an external reference implementation, not just internal consistency. Each test asserts against a value a trusted tool produced:
 
 - Krippendorff's alpha is checked against the `krippendorff` package.
 - ICC(2,1)/(2,k) is checked against the Shrout-Fleiss (1979) worked example and the `pingouin` ICC values, reproduced to six decimals.

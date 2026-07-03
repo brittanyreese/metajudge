@@ -67,7 +67,7 @@ R16. Any future paid form is out of v1 scope.
 R17. E07 is reliability (Krippendorff's alpha / ICC) plus DIF on one stratum, packaged for pip with tests, a README, and one worked demo.
 R18. Demo data reuses a public eval/judge corpus (e.g. HealthBench rubrics or an existing eval set) across strata, multi-run, never self-generated from scratch. Data-sourcing is the rabbit hole; reuse is the guard against it.
 R19. The rigor pass, DIF specification correctness and alpha correctness, is non-compressible. A wrong DIF is reputational damage, so rigor is never the piece cut to hit the effort box.
-R20. E07 ships with a preprint v1 draft as part of the artifact. A minimal v1 draft satisfies this; depth is the journal's job. The preprint is part of the artifact and is never traded against the rigor pass.
+R20. E07 ships with a preprint v1 draft as part of the artifact. A minimal draft satisfies this, depth is the journal's job, and it is never traded against the rigor pass.
 
 ## Ship Gate and Stop Conditions
 
