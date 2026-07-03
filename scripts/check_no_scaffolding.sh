@@ -19,6 +19,7 @@ allowed_toplevel=(
   ".env.example"
   ".github"
   ".gitignore"
+  ".mailmap"
   ".pre-commit-config.yaml"
   "AGENTS.md"
   "CHANGELOG.md"
