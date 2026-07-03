@@ -12,6 +12,7 @@ authors:
     family-names: Markides
     orcid: "https://orcid.org/0000-0001-6242-0842"
 version: 0.2.1
+doi: 10.5281/zenodo.21162713
 license: MIT
 repository-code: "https://github.com/brittanyreese/metajudge"
 url: "https://github.com/brittanyreese/metajudge"
