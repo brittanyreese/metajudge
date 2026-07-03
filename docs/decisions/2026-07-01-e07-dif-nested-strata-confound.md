@@ -66,6 +66,4 @@ Clauser, B. E., Mazor, K. M., and Hambleton, R. K. (1993). The effects of purifi
 
 Dorans, N. J., and Holland, P. W. (1992). DIF detection and description: Mantel-Haenszel and standardization. ETS Research Report Series, 1992(1). doi:10.1002/j.2333-8504.1992.tb01440.x
 
-Shealy, R., and Stout, W. (1993). A model-based standardization approach that separates true bias/DIF from group ability differences and detects test bias/DTF as well as item bias/DIF. Psychometrika, 58(2), 159-194. doi:10.1007/BF02294572
-
 Zumbo, B. D. (1999). A handbook on the theory and methods of differential item functioning (DIF): Logistic regression modeling as a unitary framework for binary and Likert-type (ordinal) item scores. Ottawa: Directorate of Human Resources Research and Evaluation, Department of National Defence.
