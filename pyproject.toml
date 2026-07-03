@@ -1,6 +1,6 @@
 [project]
 name = "metajudge"
-version = "0.1.0"
+version = "0.2.0"
 description = "Audit an LLM judge/rubric instrument: reliability + DIF report card."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -102,6 +102,7 @@ markers = ["slow: mark a test as slow; skipped by default, run with --run-slow"]
 dev = [
     "pytest>=8",
     "pytest-cov>=5",
+    "pytest-xdist>=3",
     "hypothesis>=6.100",
     "pingouin>=0.5",
     "statsmodels>=0.14",
