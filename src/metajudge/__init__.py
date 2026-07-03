@@ -1,4 +1,4 @@
-"""metajudge: audit an LLM judge/rubric instrument before you trust its numbers.
+"""metajudge: A reliability and DIF report card for LLM-judge and human-rater scoring instruments.
 
 Two pillars: inter-rater reliability (Krippendorff's alpha, ICC(2,1)/(2,k)) and
 differential item functioning across output strata (ordinal logistic-regression DIF).
