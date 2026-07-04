@@ -94,15 +94,51 @@ Read this as the audit's clustering-robust layer doing exactly the job it was bu
 6. **Data cleaning.** 6 of 6,468 merged essays were dropped for a literal 0 in a raw score column; this is under 0.1% of the sample and unlikely to move any result, but it is a judgment call (treating 0 as a data artifact rather than a valid floor score) made without ground truth on what produced it.
 7. **Wide cluster-bootstrap CIs.** Both DIF checks in this run have an R2-delta CI reaching down to (or within a hair of) 0, even at 791 focal / 4,619 reference items, well above the bootstrap's own minimum cluster-size floor (5). A 200-to-400-resample item-cluster bootstrap on a two-rater panel is evidently not narrow enough to separate "large point estimate" from "negligible" at this stratum size; a confirmatory run should budget for more resamples (n_boot >= 1000, matching the package default) before treating either CI bound as final.
 
-## Deferred: LLM-judge upgrade (design only, not run)
+## LLM-judge pilot (run): a self-contained open-model judge
 
-Not run in this pass: no API keys, no budget sign-off, and it is a separate cost/scope decision from this human-rater audit. Sketch for the follow-up:
+The follow-up above is now partly executed. A self-contained, dependency-free LLM-judge scoring path was added (`examples/_ellipse_judge.py` + `examples/audit_ellipse_llm.py`) and a pilot was run. It replicates the Yamashita AES setup, one LLM judge scoring the essays on the ELLIPSE analytic rubric, with the same DIF question asked of the judge. No private infrastructure: the scorer speaks the OpenAI `/v1/chat/completions` schema against any endpoint (a local `mlx_lm.server`, Ollama's `/v1`, or a hosted API), and the model, prompt, seed, and decoding are all pinned in committed code.
 
-- **Model**: GPT-4o, to replicate Yamashita's exact model choice, so a DIF finding here is directly comparable to the published many-facet Rasch result. A second model (e.g. a Gemini or Claude model, matching the existing `examples/audit_llm_judge.py` provider pattern) would test whether any bias is GPT-4o-specific or general to LLM judges.
-- **Scoring protocol**: prompt the model once per essay per analytic trait (or once per essay for all 7 dimensions in a single structured-output call, cheaper but couples the trait scores), using the ELLIPSE scoring rubric (`ELL_Rubrics.docx` in the corpus repo) verbatim as the judge instructions, so the comparison is to the same construct the human raters were trained on.
-- **Design carryover**: reuse this run's pre-registered trait (Vocabulary) and stratum pair (Asian/Pacific Islander vs Hispanic/Latino) as the confirmatory test for the LLM panel, since it is now pre-registered by construction; additionally pre-register Syntax as a second confirmatory trait, since this run's exploratory sweep flagged it before any LLM scoring happened.
-- **Conditioner**: same leave-one-trait-out design, but computed from the LLM's OWN other-trait scores (matching quality as the LLM sees it) as the primary conditioner, with the human leave-one-trait-out mean as a robustness check, since either choice makes a different assumption about what "quality, independent of the studied trait" means for an AI judge.
-- **Cost estimate**: 6,462 essays x 1 call each (structured multi-trait output) at roughly 400-800 input tokens (essay + rubric) and about 150 output tokens per call. At GPT-4o's per-million-token pricing (see `claude-api` skill reference for the equivalent Anthropic figures when picking a comparison model) this is a low-hundreds-of-dollars run, not a five-minute decision; get sign-off before running it, and run the free-tier-friendly `--mode offline` simulation path already in `audit_llm_judge.py` first to sanity-check the plumbing at zero cost.
+### Pilot design, pre-registered before scoring
+
+- **Judge model**: the pilot was specified as qwen2.5:32b on local Ollama. On the pilot hardware the 32b ran at 25-46 s/essay under memory pressure (several 70B-class models resident), infeasible for 300 essays in-session, so the committed pilot uses its small Qwen sibling, qwen2.5:7b, a one-flag change in the same model family (about 6 s/essay).
+- **Prompt**: keyword-style analytic rubric. Each trait is reduced to its salient scoring cues distilled from the official ELLIPSE rubric (`ELL_Rubrics.docx`), rather than the full paragraph descriptors, following the AES finding that keyword prompts beat long-rubric prompts. Temperature 0, fixed seed, structured JSON output (one integer 1-5 per trait), robust parse with a bounded retry.
+- **Sample**: a balanced 300-essay pilot, 150 focal (Asian/Pacific Islander) + 150 reference (Hispanic/Latino), the Yamashita-flagged pair, deterministically sampled (seed 0).
+- **Traits**: Vocabulary and Syntax (to line up with the human demo's two headline traits) plus holistic Overall, pre-registered here before the audit ran.
+- **Conditioner**: external leave-one-trait-out mean of the judge's OWN other analytic-trait scores, keyed by essay, so the match is "quality as the judge sees it," independent of the studied trait. This makes it an instrument-level DIF claim about the single judge, not a panel-relative one (a single judge has no rest-score conditioner and no reliability pillar; alpha/ICC are not reported for one rater).
+
+### Pilot result
+
+Parse-failure rate: **0/300** (every essay returned valid JSON on the first attempt). DIF, Asian/Pacific Islander vs Hispanic/Latino, external conditioner, n_obs = 300 (single judge):
+
+| Trait      | R2 delta | Class | Cluster-robust 95% BCa CI | overlap_weak |
+| ---------- | -------- | ----- | ------------------------- | ------------ |
+| Vocabulary | 0.0042   | A     | [0.0001, 0.0167]          | False        |
+| Syntax     | 0.0009   | A     | [0.0000, 0.0046]          | False        |
+| Overall    | 0.0078   | A     | [0.0005, 0.0208]          | False        |
+
+All three land in the Jodoin-Gierl negligible band (class A), with cluster-robust CIs (400 resamples, all effective) contained inside it, and conditioner-group correlations near 0.07, well inside the calibrated safe band, so none is a residual-impurity artifact. n_obs = 300 sits in the "indicative" band (200-499), below the >=500 the A/B/C thresholds were calibrated on, so the class is treated as indicative; the effect sizes are far enough below the 0.035 boundary that this caveat does not change the read.
+
+### Did the LLM judge catch class B/C DIF where the humans did not?
+
+No, not in this pilot. On the same flagged stratum pair, the qwen2.5:7b judge shows negligible (class A) DIF on Vocabulary, Syntax, and Overall alike. Set against the human demo: Vocabulary is a null for both the humans and this LLM judge; Syntax was a large but not-robustly-confirmed class C point estimate for the humans and is a clean class A null for this LLM judge. So the pilot does not reproduce Yamashita's GPT-4o bias pattern. Two honest reasons it should not be over-read as "LLM judges are fair here": the pilot model is a 7B open model, not GPT-4o or the reported 70B; and the single-judge n_obs of 300 is far smaller than the human panel's 10,820, so it has less power to resolve a small effect. The pilot's job is to prove the pipeline end to end and give a local, reproducible baseline, which it does.
+
+### Reproducibility
+
+The pilot scores are committed at `examples/data/ellipse_llm_pilot_qwen2.5-7b.csv` (300 rows, one per essay), so `uv run python examples/audit_ellipse_llm.py` reproduces the DIF audit with no GPU, model, or network. `tests/test_ellipse_llm_pilot.py` pins the three effect sizes and classes off that CSV. Regenerating the scores is the optional GPU path (`--regenerate`), and it is resumable (rerun to continue an interrupted run).
+
+## Reported run and spot-check (parameterized, not yet run)
+
+The committed pilot is a proof of pipeline. The reported judge is `mlx-community/Meta-Llama-3.1-70B-Instruct-4bit` served via `mlx_lm.server` (the keyword-prompt AES literature finds Llama-3.1-70B the strongest open ELLIPSE config). Switching to it is a base_url + model change only:
+
+```
+mlx_lm.server --model mlx-community/Meta-Llama-3.1-70B-Instruct-4bit --port 8080
+uv run python examples/audit_ellipse_llm.py --regenerate \
+    --base-url http://127.0.0.1:8080/v1 \
+    --model mlx-community/Meta-Llama-3.1-70B-Instruct-4bit \
+    --out examples/data/ellipse_llm_llama31-70b.csv
+```
+
+GPT-4o via OpenRouter is available as an optional hosted spot-check to replicate Yamashita's exact model (`--base-url https://openrouter.ai/api/v1 --model openai/gpt-4o`, API key in `ELLIPSE_JUDGE_API_KEY`). A full-corpus GPT-4o run (6,462 essays, one structured multi-trait call each, roughly 400-800 input + 150 output tokens per call) is a low-hundreds-of-dollars job; get budget sign-off first, and consider scaling the reported run to the full corpus rather than the 300-essay pilot for the power to resolve a Yamashita-scale effect.
 
 ## References
 
