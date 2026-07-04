@@ -2,10 +2,17 @@
 
 Usage:
     uv run python scripts/prep_demo.py --jsonl path/to/model_annotations.aligned.jsonl
+    uv run python scripts/prep_demo.py --jsonl path/to/model_annotations.aligned.jsonl \\
+        --field consistency
 
 The JSONL is NOT in this repo. Download from:
     https://github.com/Yale-LILY/SummEval (or Salesforce bucket)
 License: MIT. See src/metajudge/data/SOURCE.md.
+
+`--field` selects which SummEval expert-annotation dimension to extract
+(coherence, consistency, fluency, relevance). `coherence` is the shipped
+runtime demo and defaults to the wheel's data path; any other field defaults
+to `scratch/demo_<field>.csv` (exploratory, not shipped).
 """
 
 from __future__ import annotations
@@ -39,7 +46,7 @@ SYSTEM_FAMILY: dict[str, str] = {
 }
 
 
-def main(jsonl_path: Path, out_path: Path) -> None:
+def main(jsonl_path: Path, out_path: Path, field: str) -> None:
     rows: list[dict[str, object]] = []
     seen_model_ids: set[str] = set()
     id_fields_found: set[str] = set()
@@ -67,7 +74,7 @@ def main(jsonl_path: Path, out_path: Path) -> None:
                     {
                         "item": item,
                         "rater": f"expert_{slot_idx}",
-                        "score": int(ann["coherence"]),
+                        "score": int(ann[field]),
                         "stratum": family,
                     }
                 )
@@ -91,9 +98,17 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--jsonl", required=True, type=Path)
     parser.add_argument(
-        "--out",
-        default=Path("src/metajudge/data/demo.csv"),
-        type=Path,
+        "--field",
+        default="coherence",
+        choices=["coherence", "consistency", "fluency", "relevance"],
     )
+    parser.add_argument("--out", default=None, type=Path)
     args = parser.parse_args()
-    main(args.jsonl, args.out)
+    out_path = args.out
+    if out_path is None:
+        out_path = (
+            Path("src/metajudge/data/demo.csv")
+            if args.field == "coherence"
+            else Path(f"scratch/demo_{args.field}.csv")
+        )
+    main(args.jsonl, out_path, args.field)
