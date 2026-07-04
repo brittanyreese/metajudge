@@ -119,6 +119,8 @@ Judges: 3 | Items: 16 (extractive vs abstractive) | Score: coherence 1-5
 
 The contrast is the point: three Gemini judges agree with each other almost perfectly, while the human experts reach only 0.554, and near-perfect agreement is exactly when the reliability caveat matters most. A panel can be unanimous and still be unanimously wrong about the construct.
 
+High agreement is not fairness, either. [`examples/audit_catches_bias.py`](https://github.com/brittanyreese/metajudge/blob/main/examples/audit_catches_bias.py) simulates two judge panels with near-identical reliability numbers, one carrying a planted bias against one output family, and shows only the DIF pillar catches it. [`examples/audit_conditioner_choice.py`](https://github.com/brittanyreese/metajudge/blob/main/examples/audit_conditioner_choice.py) runs the same biased panel through both conditioners and shows why the choice matters: the default rest-score conditioner is corrupted by the panel's own shared bias and misses the effect entirely, where an external quality conditioner catches it. Both are seeded simulations, no key or network required; run with `uv run python -m examples.audit_catches_bias` from a repository checkout.
+
 ## Cluster-robust DIF confidence intervals
 
 The analytic likelihood-ratio test pools every (item, rater) cell as independent. In a crossed rater-by-item design that is anti-conservative: scores for the same item are correlated across raters. `cluster_bootstrap_dif` keeps the analytic point estimate and adds percentile confidence intervals (default 95%) for the effect size and the total-DIF chi-square by resampling whole item blocks. These are robustness intervals, not corrected p-values.
