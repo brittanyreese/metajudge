@@ -17,6 +17,25 @@ def _long() -> pd.DataFrame:
     )
 
 
+def test_from_long_rejects_non_numeric_score() -> None:
+    # score is an ordinal measurement. A non-numeric column must be rejected at the boundary
+    # with a clear message, not slip through construction and surface as an opaque failure
+    # deep inside alpha/ICC/DIF.
+    df = pd.DataFrame({"item": ["x", "y"], "rater": ["A", "A"], "score": ["good", "bad"]})
+    with pytest.raises(ValueError, match="numeric"):
+        Ratings.from_long(df, item="item", rater="rater", score="score")
+
+
+def test_from_long_accepts_numeric_score_stored_as_object() -> None:
+    # Integers in an object-dtype column are still ordinal-valid; the guard checks
+    # coercibility, not the stored dtype, so it must not reject them.
+    df = pd.DataFrame(
+        {"item": ["x", "y"], "rater": ["A", "A"], "score": pd.Series([1, 2], dtype=object)}
+    )
+    r = Ratings.from_long(df, item="item", rater="rater", score="score")
+    assert len(r.items) == 2
+
+
 def test_from_long_builds_matrix() -> None:
     r = Ratings.from_long(_long(), item="item", rater="rater", score="score")
     assert len(r.items) == 2

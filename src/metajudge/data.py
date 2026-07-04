@@ -61,6 +61,17 @@ class Ratings:
         missing = [c for c in cols if c not in df.columns]
         if missing:
             raise ValueError(f"columns not found: {missing}")
+        # score is an ordinal measurement; reject a non-numeric column at the boundary rather
+        # than let it surface as an opaque failure deep inside a statistic. Coercibility, not
+        # stored dtype, is the test, so numeric values held in an object column still pass.
+        try:
+            pd.to_numeric(df[score])
+        except (ValueError, TypeError) as exc:
+            raise ValueError(
+                f"score column {score!r} must be numeric/ordinal; got non-numeric values "
+                f"(dtype {df[score].dtype}). Encode ordinal labels as numbers before "
+                "building Ratings."
+            ) from exc
         duplicate_cells = df.duplicated(subset=[item, rater], keep=False)
         if bool(duplicate_cells.any()):
             bad = df.loc[duplicate_cells, [item, rater]].drop_duplicates().to_dict("records")
