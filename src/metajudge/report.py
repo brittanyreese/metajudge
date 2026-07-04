@@ -12,6 +12,7 @@ from metajudge._constants import MIN_EFFECTIVE
 from metajudge.data import Ratings
 from metajudge.dif import (
     _JG_NEGLIGIBLE,  # pyright: ignore[reportPrivateUsage]  # one Jodoin-Gierl threshold, one source
+    _n_obs_calibration_caveat,  # pyright: ignore[reportPrivateUsage]  # one small-N caveat, one source
     ClusterBootstrapDif,
     DifResult,
     cluster_bootstrap_dif,
@@ -196,6 +197,12 @@ class ReportCard:
                 "",
                 *notes,
             ]
+        # Small-sample calibration caveat: below the Jodoin-Gierl floor the A/B/C class is
+        # indicative only. Rendered here (not merely warnings.warn) so a card reader sees it,
+        # sitting above the statistics like the other inference-limiting notes.
+        n_obs_caveat = _n_obs_calibration_caveat(d.n_obs)
+        if n_obs_caveat is not None:
+            notes = [f"> WARNING: {n_obs_caveat}", "", *notes]
         r2_str = "n/a" if math.isnan(d.nagelkerke_r2_delta) else f"{d.nagelkerke_r2_delta:.3f}"
         lines = [
             "# metajudge report card",

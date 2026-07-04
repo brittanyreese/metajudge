@@ -41,6 +41,14 @@ from metajudge.data import Ratings
 _JG_NEGLIGIBLE = 0.035
 _JG_LARGE = 0.070
 
+# Jodoin & Gierl calibrated the A/B/C thresholds on educational-testing samples of >=500
+# examinees. Below that the R-squared-change bands overlap and the class is indicative, not
+# definitive; below 200 they overlap so far the class is only a hint. These gate the
+# small-sample caveat surfaced on the report card and via warnings.warn (one source, so the
+# card note and the runtime warning never drift apart).
+_N_OBS_CALIBRATION_MIN = 500
+_N_OBS_CALIBRATION_LOW = 200
+
 # Advisory band for conditioner/group overlap: at or above this |corr|, the conditioner
 # is weakly separated from group membership and the DIF match is worth flagging (though
 # still identifiable up to the > 0.999 refusal guard in _dif_stats). Calibrated by the
@@ -219,6 +227,16 @@ class DifResult:
         """Whether the conditioner came from an external source rather than the panel rest score."""
         return self.conditioner_source == "external"
 
+    @property
+    def dif_class_indicative(self) -> bool:
+        """Whether ``n_obs`` is below the Jodoin-Gierl calibration floor (500).
+
+        ``True`` when the A/B/C class rests on fewer observations than the thresholds were
+        calibrated on, so it is indicative rather than definitive. The report card renders
+        the matching caveat; this exposes the same signal to programmatic callers.
+        """
+        return self.n_obs < _N_OBS_CALIBRATION_MIN
+
 
 def _classify_jodoin_gierl(r2_delta: float) -> str:
     """Map a Nagelkerke R-squared change to an A/B/C DIF magnitude class.
@@ -242,6 +260,29 @@ def _classify_jodoin_gierl(r2_delta: float) -> str:
     if r2_delta < _JG_LARGE:
         return "B"
     return "C"
+
+
+def _n_obs_calibration_caveat(n_obs: int) -> str | None:
+    """The Jodoin-Gierl small-sample caveat for ``n_obs`` observations, or ``None`` when adequate.
+
+    One source for both the ``warnings.warn`` a programmatic caller sees and the note the
+    report card renders, so the two surfaces cannot disagree. ``None`` above the calibration
+    floor; two tiers below it (moderate 200-499, indicative-only under 200).
+    """
+    if n_obs >= _N_OBS_CALIBRATION_MIN:
+        return None
+    if n_obs < _N_OBS_CALIBRATION_LOW:
+        return (
+            f"n_obs={n_obs}: the Jodoin-Gierl A/B/C classification was calibrated on "
+            "educational testing datasets with >=500 examinees; at this sample size the "
+            "R-squared-change thresholds overlap and the class should be treated as "
+            "indicative only."
+        )
+    return (
+        f"n_obs={n_obs}: the Jodoin-Gierl A/B/C classification was calibrated on "
+        ">=500 examinees; between 200 and 499 the thresholds have moderate calibration "
+        "support and the class should be treated as indicative rather than definitive."
+    )
 
 
 def _fit_proportional_odds(endog: NDArray[np.int_], x: NDArray[np.float64]) -> tuple[float, bool]:
@@ -615,19 +656,8 @@ def logistic_dif(
         np.asarray(reference_cond_vals, dtype=np.float64),
     )
 
-    if stats.n_obs < 500:
-        if stats.n_obs < 200:
-            _n_obs_msg = (
-                f"n_obs={stats.n_obs}: the Jodoin-Gierl A/B/C classification was calibrated on "
-                "educational testing datasets with ≥500 examinees; at this sample size the "
-                "R²-change thresholds overlap and the class should be treated as indicative only."
-            )
-        else:
-            _n_obs_msg = (
-                f"n_obs={stats.n_obs}: the Jodoin-Gierl A/B/C classification was calibrated on "
-                ">=500 examinees; between 200-499 the thresholds have moderate calibration "
-                "support and the class should be treated as indicative rather than definitive."
-            )
+    _n_obs_msg = _n_obs_calibration_caveat(stats.n_obs)
+    if _n_obs_msg is not None:
         warnings.warn(_n_obs_msg, UserWarning, stacklevel=2)
 
     return DifResult(

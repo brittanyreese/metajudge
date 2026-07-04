@@ -429,6 +429,43 @@ def test_alpha_ci_degraded_when_drops_exceed_tolerance() -> None:
     assert flags.alpha_ci_degraded is True
 
 
+def test_markdown_warns_small_n_dif_class_is_indicative() -> None:
+    # n_obs below the Jodoin-Gierl calibration floor (500) must surface a card caveat that
+    # the A/B/C class is indicative only, above the effect-size line -- not merely a Python
+    # warnings.warn a card reader never sees. _card uses n_obs=120 (< 200: strongest tier).
+    md = _card(converged=True).to_markdown()
+    assert "calibrated on" in md
+    assert "thresholds overlap" in md
+    assert md.index("calibrated on") < md.index("Effect size")
+
+
+def test_markdown_small_n_moderate_tier_between_200_and_500() -> None:
+    from dataclasses import replace
+
+    card = _card(converged=True)
+    moderate = replace(card, dif=replace(card.dif, n_obs=300))
+    md = moderate.to_markdown()
+    assert "moderate calibration support" in md
+
+
+def test_markdown_no_small_n_caveat_when_n_obs_adequate() -> None:
+    from dataclasses import replace
+
+    card = _card(converged=True)
+    adequate = replace(card, dif=replace(card.dif, n_obs=600))
+    md = adequate.to_markdown()
+    assert "calibrated on" not in md
+
+
+def test_dif_class_indicative_true_below_calibration_floor() -> None:
+    from dataclasses import replace
+
+    card = _card(converged=True)  # n_obs=120
+    assert card.dif.dif_class_indicative is True
+    adequate = replace(card.dif, n_obs=600)
+    assert adequate.dif_class_indicative is False
+
+
 def test_report_warns_on_po_violation() -> None:
     from dataclasses import replace
 
