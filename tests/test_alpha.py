@@ -134,6 +134,21 @@ def test_bogus_level_raises_clear_value_error() -> None:
         krippendorff_alpha(r, level="bogus", n_bootstrap=0)
 
 
+def test_bootstrap_drops_nonfinite_alpha_resamples(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Guard against a krippendorff build that RETURNS nan on a degenerate resample instead
+    # of raising (the try/except only catches raises): a nan must be dropped, not appended,
+    # so n_effective counts only realized finite replicates -- the AlphaResult contract --
+    # independent of the library's raise-vs-return behavior.
+    import metajudge.reliability as rel
+
+    monkeypatch.setattr(rel.kd, "alpha", lambda **_: float("nan"))
+    r = _ratings_from_matrix([[1, 2, 3, 3, 2, 1, 4, 1, 2], [1, 2, 3, 3, 2, 2, 4, 1, 3]])
+    res = krippendorff_alpha(r, level="ordinal", n_bootstrap=50, seed=1)
+    assert res.n_effective == 0
+    assert np.isnan(res.ci_low)
+    assert np.isnan(res.ci_high)
+
+
 def test_alpha_ci_is_nan_when_no_resamples_survive() -> None:
     # n_bootstrap=0 → boot is empty → CI should be NaN (not point-collapsed).
     matrix = [[1, 2], [2, 1]]

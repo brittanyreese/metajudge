@@ -1,4 +1,6 @@
 # tests/test_icc.py
+import math
+
 import pandas as pd
 import pytest
 
@@ -82,6 +84,24 @@ def test_icc_rejects_degenerate_dimensions() -> None:
     with pytest.raises(ValueError) as exc:
         icc(r)
     assert "at least 2" in str(exc.value)
+
+
+def test_icc_ci_finite_under_perfect_rater_agreement() -> None:
+    # Raters agree perfectly on every target (targets still differ), so ms_error == 0 and the
+    # F-based CI divides by MSE. The point ICC (1.0) is fine, but the interval used to emit a
+    # silent nan. It must collapse to the point estimate, not report nan bounds.
+    wide = pd.DataFrame(
+        {"j1": [1, 2, 3, 4], "j2": [1, 2, 3, 4], "j3": [1, 2, 3, 4]},
+        index=["t1", "t2", "t3", "t4"],
+    )
+    res = icc(_wide_to_ratings(wide))
+    assert res.icc1 == pytest.approx(1.0)
+    assert math.isfinite(res.icc1_ci_low)
+    assert math.isfinite(res.icc1_ci_high)
+    assert res.icc1_ci_low == pytest.approx(res.icc1)
+    assert res.icc1_ci_high == pytest.approx(res.icc1)
+    assert math.isfinite(res.icck_ci_low)
+    assert math.isfinite(res.icck_ci_high)
 
 
 def test_icc_rejects_missing_cells_with_cited_guidance() -> None:

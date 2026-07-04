@@ -94,9 +94,15 @@ def krippendorff_alpha(
         cols = rng.integers(0, n_units, size=n_units)  # type: ignore[reportUnknownVariableType]
         sample: NDArray[np.float64] = matrix[:, cols]
         try:
-            boot.append(float(kd.alpha(reliability_data=sample, level_of_measurement=lom)))  # type: ignore[reportUnknownMemberType]
+            value = float(kd.alpha(reliability_data=sample, level_of_measurement=lom))  # type: ignore[reportUnknownMemberType]
         except (ValueError, ZeroDivisionError):
             continue
+        # A degenerate resample makes alpha undefined. Most krippendorff builds raise
+        # (caught above), but a 0/0 build returns nan instead; drop that too, so a nan never
+        # pollutes the percentile CI and n_effective counts only realized replicates.
+        if not np.isfinite(value):
+            continue
+        boot.append(value)
     if boot:
         ci_low, ci_high = (float(x) for x in np.percentile(boot, [2.5, 97.5]))  # type: ignore[reportUnknownMemberType]
     else:
@@ -181,6 +187,24 @@ def icc(ratings: Ratings) -> IccResult:
 
     icc1 = (ms_rows - ms_error) / (ms_rows + (k - 1) * ms_error + k * (ms_cols - ms_error) / n)
     icck = (ms_rows - ms_error) / (ms_rows + (ms_cols - ms_error) / n)
+
+    if ms_error == 0.0:
+        # Perfect rater agreement (raters agree exactly on every target): the F-based CI
+        # divides by MSE and is undefined. The point ICC is well-defined (=1 when targets
+        # vary), so collapse the interval to it rather than divide by zero or emit a silent
+        # nan bound.
+        icc1_v = float(icc1)
+        icck_v = float(icck)
+        return IccResult(
+            icc1=icc1_v,
+            icck=icck_v,
+            n_targets=n,
+            n_raters=k,
+            icc1_ci_low=icc1_v,
+            icc1_ci_high=icc1_v,
+            icck_ci_low=icck_v,
+            icck_ci_high=icck_v,
+        )
 
     # McGraw & Wong (1996) exact CI for the two-way random absolute-agreement ICC (Case 2).
     # The estimated denominator df v makes this an approximation to an exact interval; it is
