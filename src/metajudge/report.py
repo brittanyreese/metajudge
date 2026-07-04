@@ -12,9 +12,9 @@ from metajudge._constants import MIN_EFFECTIVE
 from metajudge.data import Ratings
 from metajudge.dif import (
     _JG_NEGLIGIBLE,  # pyright: ignore[reportPrivateUsage]  # one Jodoin-Gierl threshold, one source
-    _n_obs_calibration_caveat,  # pyright: ignore[reportPrivateUsage]  # one small-N caveat, one source
     ClusterBootstrapDif,
     DifResult,
+    _n_obs_calibration_caveat,  # pyright: ignore[reportPrivateUsage]  # one small-N caveat, one source
     cluster_bootstrap_dif,
     logistic_dif,
 )
