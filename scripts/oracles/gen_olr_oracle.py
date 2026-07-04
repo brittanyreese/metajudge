@@ -84,8 +84,12 @@ def _load_test_constants() -> dict[str, object]:
         "_OR_P_UNIFORM",
         "_OR_P_NONUNIFORM",
         "_OR_NAGELKERKE_R2_DELTA",
+        "_RS_CHI2_TOTAL",
         "_RS_CHI2_UNIFORM",
         "_RS_CHI2_NONUNIFORM",
+        "_RS_P_TOTAL",
+        "_RS_P_UNIFORM",
+        "_RS_P_NONUNIFORM",
         "_RS_NAGELKERKE_R2_DELTA",
     }
     found: dict[str, object] = {}
@@ -215,8 +219,12 @@ def main() -> int:
         "nagelkerke_r2_delta": float(constants["_OR_NAGELKERKE_R2_DELTA"]),  # type: ignore[arg-type]
     }
     rest_expected = {
+        "chi2_total": float(constants["_RS_CHI2_TOTAL"]),  # type: ignore[arg-type]
         "chi2_uniform": float(constants["_RS_CHI2_UNIFORM"]),  # type: ignore[arg-type]
         "chi2_nonuniform": float(constants["_RS_CHI2_NONUNIFORM"]),  # type: ignore[arg-type]
+        "p_total": float(constants["_RS_P_TOTAL"]),  # type: ignore[arg-type]
+        "p_uniform": float(constants["_RS_P_UNIFORM"]),  # type: ignore[arg-type]
+        "p_nonuniform": float(constants["_RS_P_NONUNIFORM"]),  # type: ignore[arg-type]
         "nagelkerke_r2_delta": float(constants["_RS_NAGELKERKE_R2_DELTA"]),  # type: ignore[arg-type]
     }
 

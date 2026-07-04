@@ -231,6 +231,13 @@ _OR_NAGELKERKE_R2_DELTA = 0.074462
 _RS_CHI2_UNIFORM = 0.458909
 _RS_CHI2_NONUNIFORM = 0.010651
 _RS_NAGELKERKE_R2_DELTA = 0.001982
+# The total (M1-vs-M3 LR) and its p-values, pinned to polr independently rather than left to
+# ride on chi2_uniform + chi2_nonuniform additivity, so a bug in the total path has its own
+# external witness.
+_RS_CHI2_TOTAL = 0.469560
+_RS_P_TOTAL = 0.79074461
+_RS_P_UNIFORM = 0.49813416
+_RS_P_NONUNIFORM = 0.91780063
 
 
 def _frozen() -> tuple[Ratings, dict[Hashable, float]]:
@@ -428,8 +435,12 @@ def test_rest_score_path_matches_pinned_oracle() -> None:
     ratings, _ = _frozen()
     res = logistic_dif(ratings, focal="foc", reference="ref")
     assert res.conditioner_source == "rest_score"
+    assert res.chi2_total == pytest.approx(_RS_CHI2_TOTAL, abs=1e-3)
     assert res.chi2_uniform == pytest.approx(_RS_CHI2_UNIFORM, abs=1e-3)
     assert res.chi2_nonuniform == pytest.approx(_RS_CHI2_NONUNIFORM, abs=1e-3)
+    assert res.p_total == pytest.approx(_RS_P_TOTAL, abs=1e-5)
+    assert res.p_uniform == pytest.approx(_RS_P_UNIFORM, abs=1e-5)
+    assert res.p_nonuniform == pytest.approx(_RS_P_NONUNIFORM, abs=1e-4)
     assert res.nagelkerke_r2_delta == pytest.approx(_RS_NAGELKERKE_R2_DELTA, abs=1e-3)
     assert res.dif_class == "A"
     assert res.converged is True
