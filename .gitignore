@@ -28,6 +28,15 @@ htmlcov/
 # Private local agent context (canonical context is the tracked AGENTS.md)
 CLAUDE.md
 
+# Private agent / tool caches — pinned here so they survive a fresh clone or CI,
+# instead of relying on the machine's global excludesfile or a nested .gitignore.
+.claude/
+.serena/
+.superpowers/
+.memsearch/
+.code-review-graph/
+.hypothesis/
+
 # Private research / white-paper working notes (not part of the published repo)
 research/
 
