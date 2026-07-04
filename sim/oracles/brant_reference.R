@@ -3,8 +3,10 @@
 # sim/oracles/make_brant_fixture.py) so the python test and this oracle see the same
 # rows. Run:
 #   Rscript sim/oracles/brant_reference.R
-# Pin the printed Omnibus and per-predictor X2/df/probability into
-# tests/test_diagnostics.py with this script path as provenance.
+# The pinned Omnibus and per-predictor X2/df/probability live in tests/test_brant.py; the
+# provenance gate (tests/test_brant_provenance.py) parses the machine-readable "VAL" lines
+# below and checks the engine still reproduces R brant, so this script is the recipe that
+# makes the frozen literals falsifiable from a clean clone (SPEC R19).
 suppressMessages({ library(MASS); library(brant) })
 
 args <- commandArgs(trailingOnly = FALSE)
@@ -17,7 +19,16 @@ run_one <- function(name) {
   d$y <- factor(d$y, ordered = TRUE)
   m <- polr(y ~ x1 + x2, data = d, Hess = TRUE)
   cat("\n=== brant() on", name, "===\n")
-  print(brant(m))
+  bt <- brant(m)  # prints the human table and returns the X2/df/probability matrix
+  # Machine-readable lines for the provenance harness: VAL <fixture-key> <row> X2 df prob,
+  # at full precision so the pinned tolerances -- not this print -- set the comparison.
+  key <- sub("\\.csv$", "", name)
+  for (rn in rownames(bt)) {
+    cat(sprintf(
+      "VAL\t%s\t%s\t%.10f\t%d\t%.10f\n",
+      key, rn, bt[rn, "X2"], as.integer(bt[rn, "df"]), bt[rn, "probability"]
+    ))
+  }
 }
 
 run_one("brant_po_holds.csv")

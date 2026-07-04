@@ -1,7 +1,7 @@
 """Generate the shared Brant-test fixtures (one where PO holds, one where it fails).
 
 Single source of truth for both oracles: writes the CSVs under sim/fixtures/, read
-verbatim by sim/oracles/brant_reference.R (R brant) and by tests/test_diagnostics.py.
+verbatim by sim/oracles/brant_reference.R (R brant) and by tests/test_brant.py.
 Generating once and sharing the CSV gives the python test and the R oracle exactly the
 same rows, so the R brant output is the precise reference value for each fixture.
 
