@@ -57,9 +57,7 @@ It prints the report card below, with the live numbers exactly as the command pr
 - ICC(2,1): 0.573 [95% CI 0.449, 0.664]; ICC(2,k): 0.801 [95% CI 0.710, 0.856] (1600 targets x 3 raters)
 
 ## DIF (panel-relative, rest-score conditioner)
-> Note: strata nest items (each item is in one stratum), so this matches quality between nested item sets, not within shared items. If the strata differ in quality, the conditioner correlates with the group and residual confounding (DIF impurity) remains; read the effect size as screening evidence, not a confound-free fairness verdict.
-
-> Note: the rest-score conditioner cannot see bias shared across the entire rater panel, so this is panel-relative DIF, not an instrument-level fairness clearance. Pass a valid independent external quality conditioner for a stronger instrument-level analysis.
+> Note: two limits bound this read. Strata nest items (each item is in one stratum), so the conditioner matches quality between nested item sets, not within shared items; if the strata differ in quality it correlates with the group and residual confounding (DIF impurity) remains. And the rest-score conditioner cannot see bias shared across the entire rater panel. Pass a valid independent external quality conditioner for a stronger, instrument-level analysis; absent that, read the effect size as panel-relative screening evidence, not an instrument-level fairness clearance.
 
 - abstractive vs extractive (conditioner: rest_score, n=4800)
 - Effect size (Nagelkerke R2 delta): 0.002 (Jodoin-Gierl class A)
@@ -117,7 +115,7 @@ Judges: 3 | Items: 16 (extractive vs abstractive) | Score: coherence 1-5
 | Human experts (SummEval, n=1600) | 0.554 | 0.573 | 0.801 |
 | Gemini judges (n=16) | 0.993 | 0.991 | 0.997 |
 
-The contrast is the point: three Gemini judges agree with each other almost perfectly, while the human experts reach only 0.554, and near-perfect agreement is exactly when the reliability caveat matters most. A panel can be unanimous and still be unanimously wrong about the construct.
+Three Gemini judges agree with each other almost perfectly, while the human experts reach only 0.554. Near-perfect agreement is exactly when the reliability caveat matters most: a panel can agree completely and still be wrong about the construct.
 
 ## Cluster-robust DIF confidence intervals
 
