@@ -648,6 +648,66 @@ def test_cluster_bootstrap_drops_nonconverged_refits(monkeypatch: pytest.MonkeyP
     assert res.chi2_total_ci_low > 1.0
 
 
+def _stub_stats(*, converged: bool) -> _DifStats:
+    # A finite r2_delta that classifies as C, with the convergence flag under test.
+    return _DifStats(
+        chi2_total=12.0,
+        chi2_uniform=6.0,
+        chi2_nonuniform=6.0,
+        nagelkerke_r2_delta=0.10,
+        n_obs=_N_ITEMS * _N_RATERS,
+        converged=converged,
+        po_violation=False,
+        conditioner_group_corr=0.1,
+    )
+
+
+def test_dif_class_unknown_when_fit_did_not_converge(monkeypatch: pytest.MonkeyPatch) -> None:
+    # When the optimizer reports non-convergence but the LR ordering survives, r2_delta is
+    # finite and the engine used to emit a confident A/B/C letter on a non-converged fit. The
+    # bare dif_class field must degrade to "?" so a programmatic reader of it cannot act on a
+    # class the fit does not support (the card warns about non-convergence separately).
+    ratings, cond = _frozen()
+
+    def fake_dif_stats(
+        scores: list[float],
+        groups: list[float],
+        cond_rows: list[float],
+        *,
+        want_split: bool,
+        po_alpha: float = 1e-3,
+    ) -> _DifStats:
+        del scores, groups, cond_rows, want_split, po_alpha
+        return _stub_stats(converged=False)
+
+    monkeypatch.setattr(dif_module, "_dif_stats", fake_dif_stats)
+    res = logistic_dif(ratings, focal="foc", reference="ref", conditioner=cond)
+    assert res.converged is False
+    assert res.dif_class == "?"
+
+
+def test_dif_class_present_when_converged(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Control: the same finite r2_delta with converged=True keeps the definite class, so the
+    # "?" above is driven by convergence, not by the effect size.
+    ratings, cond = _frozen()
+
+    def fake_dif_stats(
+        scores: list[float],
+        groups: list[float],
+        cond_rows: list[float],
+        *,
+        want_split: bool,
+        po_alpha: float = 1e-3,
+    ) -> _DifStats:
+        del scores, groups, cond_rows, want_split, po_alpha
+        return _stub_stats(converged=True)
+
+    monkeypatch.setattr(dif_module, "_dif_stats", fake_dif_stats)
+    res = logistic_dif(ratings, focal="foc", reference="ref", conditioner=cond)
+    assert res.converged is True
+    assert res.dif_class == "C"
+
+
 def test_cluster_bootstrap_is_reproducible() -> None:
     ratings, cond = _frozen()
     kw = {"focal": "foc", "reference": "ref", "conditioner": cond, "n_boot": 120, "seed": 7}

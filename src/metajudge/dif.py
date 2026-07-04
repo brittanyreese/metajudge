@@ -668,7 +668,10 @@ def logistic_dif(
         p_uniform=float(chi2.sf(stats.chi2_uniform, df=1)),  # type: ignore[reportUnknownMemberType]
         p_nonuniform=float(chi2.sf(stats.chi2_nonuniform, df=1)),  # type: ignore[reportUnknownMemberType]
         nagelkerke_r2_delta=stats.nagelkerke_r2_delta,
-        dif_class=_classify_jodoin_gierl(stats.nagelkerke_r2_delta),
+        # A non-converged fit can still leave a finite r2_delta (the LR ordering survives an
+        # optimizer failure); degrade the class to "?" so the bare field never reports a
+        # confident A/B/C a reader could act on. _classify already returns "?" on a NaN delta.
+        dif_class=_classify_jodoin_gierl(stats.nagelkerke_r2_delta) if stats.converged else "?",
         conditioner_source=source,
         n_obs=stats.n_obs,
         reference_level=reference,
