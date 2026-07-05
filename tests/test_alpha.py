@@ -144,7 +144,7 @@ def test_bootstrap_drops_nonfinite_alpha_resamples(monkeypatch: pytest.MonkeyPat
     def _nan_alpha(**_: object) -> float:
         return float("nan")
 
-    monkeypatch.setattr(rel.kd, "alpha", _nan_alpha)
+    monkeypatch.setattr(rel.kd, "alpha", _nan_alpha)  # type: ignore[reportPrivateImportUsage]
     r = _ratings_from_matrix([[1, 2, 3, 3, 2, 1, 4, 1, 2], [1, 2, 3, 3, 2, 2, 4, 1, 3]])
     res = krippendorff_alpha(r, level="ordinal", n_bootstrap=50, seed=1)
     assert res.n_effective == 0
