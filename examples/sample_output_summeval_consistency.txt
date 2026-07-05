@@ -1,0 +1,76 @@
+# metajudge: SummEval consistency/fluency/relevance DIF (pre-registered family)
+_abstractive vs extractive, external leave-one-dimension-out conditioner, Holm-corrected across 3 dimensions._
+
+Per-stratum item N: {'abstractive': 900, 'extractive': 700}
+
+## PRIMARY: consistency
+
+# metajudge report card
+
+## Reliability
+> Note: high agreement (alpha, ICC) is not evidence the rubric measures the intended construct. It shows raters apply the scale consistently, not that the scale captures the quality you care about.
+
+- Krippendorff's alpha (ordinal): 0.796 [95% CI 0.757, 0.833]
+- ICC(2,1): 0.899 [95% CI 0.890, 0.909]; ICC(2,k): 0.964 [95% CI 0.960, 0.968] (1600 targets x 3 raters)
+
+## DIF (external conditioner)
+> Note: strata nest items (each item is in one stratum), so this matches quality between nested item sets, not within shared items. If the strata differ in quality, the conditioner correlates with the group and residual confounding (DIF impurity) remains; read the effect size as screening evidence, not a confound-free fairness verdict.
+
+> Note: external-conditioner DIF supports instrument-level interpretation only when the conditioner is valid, independent, and appropriate for the quality construct being matched.
+
+- abstractive vs extractive (conditioner: external, n=4800)
+- Effect size (Nagelkerke R2 delta): 0.015 (Jodoin-Gierl class A)
+- Clustering-robust flag: no robust DIF (CI reaches the negligible band) (R2 delta 95% percentile CI [0.006, 0.030], item-cluster bootstrap, 400/400 resamples).
+  Caveat: the flag rests on a percentile CI bound compared to the Jodoin-Gierl 0.035 boundary (BCa was undefined at this 0-bounded statistic). The percentile method is least accurate at the boundary, so a verdict from a bound sitting near it is fragile; read the point estimate and CI, not the label alone.
+- Uniform DIF: chi2(1)=1.72, p=0.1900 [analytic, unclustered]
+- Nonuniform DIF: chi2(1)=56.23, p=0.0000 [analytic, unclustered]
+
+p_total, Holm-adjusted across the 3-dimension family: 7.84e-13
+
+## SECONDARY: fluency
+
+# metajudge report card
+
+## Reliability
+> Note: high agreement (alpha, ICC) is not evidence the rubric measures the intended construct. It shows raters apply the scale consistently, not that the scale captures the quality you care about.
+
+- Krippendorff's alpha (ordinal): 0.588 [95% CI 0.541, 0.631]
+- ICC(2,1): 0.727 [95% CI 0.703, 0.749]; ICC(2,k): 0.889 [95% CI 0.877, 0.900] (1600 targets x 3 raters)
+
+## DIF (external conditioner)
+> Note: strata nest items (each item is in one stratum), so this matches quality between nested item sets, not within shared items. If the strata differ in quality, the conditioner correlates with the group and residual confounding (DIF impurity) remains; read the effect size as screening evidence, not a confound-free fairness verdict.
+
+> Note: external-conditioner DIF supports instrument-level interpretation only when the conditioner is valid, independent, and appropriate for the quality construct being matched.
+
+- abstractive vs extractive (conditioner: external, n=4800)
+- Effect size (Nagelkerke R2 delta): 0.003 (Jodoin-Gierl class A)
+- Clustering-robust flag: no robust DIF (CI reaches the negligible band) (R2 delta 95% percentile CI [0.000, 0.012], item-cluster bootstrap, 397/400 resamples).
+  Caveat: the flag rests on a percentile CI bound compared to the Jodoin-Gierl 0.035 boundary (BCa was undefined at this 0-bounded statistic). The percentile method is least accurate at the boundary, so a verdict from a bound sitting near it is fragile; read the point estimate and CI, not the label alone.
+- Uniform DIF: chi2(1)=2.54, p=0.1111 [analytic, unclustered]
+- Nonuniform DIF: chi2(1)=9.10, p=0.0026 [analytic, unclustered]
+
+p_total, Holm-adjusted across the 3-dimension family: 0.00297
+
+## EXPLORATORY: relevance
+
+# metajudge report card
+
+## Reliability
+> Note: high agreement (alpha, ICC) is not evidence the rubric measures the intended construct. It shows raters apply the scale consistently, not that the scale captures the quality you care about.
+
+- Krippendorff's alpha (ordinal): 0.397 [95% CI 0.365, 0.426]
+- ICC(2,1): 0.468 [95% CI 0.378, 0.545]; ICC(2,k): 0.725 [95% CI 0.646, 0.782] (1600 targets x 3 raters)
+
+## DIF (external conditioner)
+> Note: strata nest items (each item is in one stratum), so this matches quality between nested item sets, not within shared items. If the strata differ in quality, the conditioner correlates with the group and residual confounding (DIF impurity) remains; read the effect size as screening evidence, not a confound-free fairness verdict.
+
+> Note: external-conditioner DIF supports instrument-level interpretation only when the conditioner is valid, independent, and appropriate for the quality construct being matched.
+
+- abstractive vs extractive (conditioner: external, n=4800)
+- Effect size (Nagelkerke R2 delta): 0.002 (Jodoin-Gierl class A)
+- Clustering-robust flag: no robust DIF (CI reaches the negligible band) (R2 delta 95% percentile CI [0.001, 0.007], item-cluster bootstrap, 400/400 resamples).
+  Caveat: the flag rests on a percentile CI bound compared to the Jodoin-Gierl 0.035 boundary (BCa was undefined at this 0-bounded statistic). The percentile method is least accurate at the boundary, so a verdict from a bound sitting near it is fragile; read the point estimate and CI, not the label alone.
+- Uniform DIF: chi2(1)=12.28, p=0.0005 [analytic, unclustered]
+- Nonuniform DIF: chi2(1)=2.51, p=0.1135 [analytic, unclustered]
+
+p_total, Holm-adjusted across the 3-dimension family: 0.00123
