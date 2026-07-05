@@ -88,7 +88,15 @@ def select_pilot(merged: pd.DataFrame) -> pd.DataFrame:
     return pd.concat(parts, ignore_index=True)
 
 
-_CSV_COLUMNS = ["text_id_kaggle", "race_ethnicity", *ALL_TRAITS, "attempts"]
+_CSV_COLUMNS = [
+    "text_id_kaggle",
+    "race_ethnicity",
+    *ALL_TRAITS,
+    "attempts",
+    "system_fingerprint",
+    "prompt_tokens",
+    "truncated",
+]
 
 
 def _already_scored(out_path: Path) -> set[str]:
@@ -133,9 +141,28 @@ def regenerate(args: argparse.Namespace) -> None:
 
     scored = 0
     failures: list[str] = []
+    run_fingerprints: set[str] = set()
     for position, (_, essay) in enumerate(todo.iterrows(), start=1):
         essay_id = str(essay["text_id_kaggle"])
         result = score_essay(config, essay_id, str(essay["Text"]))
+        if result.fingerprint_changed:
+            print(
+                f"[{position}/{len(todo)}] WARNING {essay_id}: system_fingerprint changed "
+                "across this essay's 7 calls -- scores are non-comparable"
+            )
+        if result.system_fingerprint is not None:
+            if run_fingerprints and result.system_fingerprint not in run_fingerprints:
+                print(
+                    f"[{position}/{len(todo)}] WARNING {essay_id}: system_fingerprint "
+                    f"{result.system_fingerprint!r} is new for this run (seen so far: "
+                    f"{sorted(run_fingerprints)}) -- treat the run as non-comparable"
+                )
+            run_fingerprints.add(result.system_fingerprint)
+        if result.truncated:
+            print(
+                f"[{position}/{len(todo)}] WARNING {essay_id}: prompt_tokens="
+                f"{result.prompt_tokens} looks truncated for this essay's length"
+            )
         if result.scores is None:
             failures.append(essay_id)
             print(
@@ -147,6 +174,9 @@ def regenerate(args: argparse.Namespace) -> None:
             "text_id_kaggle": essay_id,
             "race_ethnicity": str(essay["race_ethnicity"]),
             "attempts": result.attempts,
+            "system_fingerprint": result.system_fingerprint,
+            "prompt_tokens": result.prompt_tokens,
+            "truncated": result.truncated,
         }
         row.update(result.scores)
         _append_row(args.out, row)

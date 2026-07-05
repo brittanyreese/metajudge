@@ -25,6 +25,27 @@ The judge asks for STRUCTURED JSON (one integer rubric score for the trait) per 
 parses it robustly, with a bounded per-trait retry on parse failure; an essay where any trait
 still fails to parse after retries is returned as a ``JudgeResult`` with ``scores=None`` and
 the offending raw text, never silently dropped or partially filled.
+
+Per-backend reproducibility pins (`docs/decisions/2026-07-04-e07-ellipse-human-rater-dif.md`,
+"Reproducibility protocol per backend"):
+
+- **OpenRouter.** A model slug like ``openai/gpt-4o`` load-balances across upstream
+  providers (OpenAI direct, Azure-hosted OpenAI were both observed serving it in a
+  spot-check, each with a different ``system_fingerprint``). When ``base_url`` is
+  OpenRouter and ``JudgeConfig.provider`` is not set, the request is auto-pinned to
+  ``DEFAULT_OPENROUTER_PROVIDER`` (OpenAI-only route, fail closed if a provider would
+  silently drop ``seed``).
+- **OpenAI / OpenRouter fingerprint.** Every response's ``system_fingerprint`` is
+  captured on ``JudgeResult``; if it changes across an essay's 7 per-trait calls,
+  ``fingerprint_changed=True`` flags that essay's scores as non-comparable.
+- **Ollama.** The OpenAI-compatible ``/v1/chat/completions`` endpoint does NOT accept a
+  per-request ``options.num_ctx`` (verified against Ollama's own OpenAI-compatibility
+  docs: the endpoint's supported request fields do not include ``options``); the context
+  window can only be raised server-side, via the ``OLLAMA_CONTEXT_LENGTH`` env var on
+  ``ollama serve`` or a ``PARAMETER num_ctx <n>`` line in a custom Modelfile. What CAN be
+  checked client-side is the response's ``usage.prompt_tokens`` (Ollama's OpenAI-compat
+  equivalent of ``prompt_eval_count``): ``JudgeResult.truncated`` flags a value
+  implausibly small for the essay's own length as a truncation tripwire.
 """
 
 from __future__ import annotations
@@ -105,6 +126,19 @@ _ENV_API_KEY = "ELLIPSE_JUDGE_API_KEY"
 DEFAULT_BASE_URL = "http://127.0.0.1:11434/v1"
 DEFAULT_MODEL = "qwen2.5:7b"
 
+# OpenRouter provider-routing pin (see module docstring). Restricts a load-balanced model
+# slug to the OpenAI-direct route and fails closed rather than silently dropping `seed`.
+OPENROUTER_HOST = "openrouter.ai"
+DEFAULT_OPENROUTER_PROVIDER: Mapping[str, object] = {
+    "order": ["openai"],
+    "allow_fallbacks": False,
+    "require_parameters": True,
+}
+
+# ponytail: crude chars-per-token heuristic (no tokenizer dependency); revisit if it
+# false-positives on a real judge's usage.prompt_tokens.
+_CHARS_PER_TOKEN_ESTIMATE = 4
+
 _THINK_BLOCK = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
 _JSON_OBJECT = re.compile(r"\{.*\}", re.DOTALL)
 
@@ -115,7 +149,9 @@ class JudgeConfig:
 
     ``base_url`` / ``model`` / ``api_key`` default to environment variables, then to a
     local Ollama server. ``temperature`` and ``seed`` are pinned for determinism;
-    ``max_retries`` bounds the reparse loop per essay.
+    ``max_retries`` bounds the reparse loop per essay. ``provider`` overrides the
+    OpenRouter provider-routing object; leave it ``None`` to get the auto-pinned
+    OpenAI-only route on an OpenRouter ``base_url`` (see module docstring).
     """
 
     base_url: str = DEFAULT_BASE_URL
@@ -125,6 +161,7 @@ class JudgeConfig:
     seed: int = 0
     timeout_s: float = 120.0
     max_retries: int = 2
+    provider: Mapping[str, object] | None = None
 
     @classmethod
     def from_env(cls, **overrides: object) -> JudgeConfig:
@@ -150,13 +187,21 @@ class JudgeResult:
 
     ``scores`` maps each rubric trait to an integer 1-5 on success, or is ``None`` when
     every attempt failed to parse; ``raw`` keeps the last raw completion for logging, and
-    ``attempts`` counts how many requests were made.
+    ``attempts`` counts how many requests were made. ``system_fingerprint`` is the last
+    fingerprint seen across this essay's calls; ``fingerprint_changed`` is True if the 7
+    per-trait calls did not all report the same one (non-comparable scores; see module
+    docstring). ``prompt_tokens`` is the last reported ``usage.prompt_tokens``;
+    ``truncated`` flags it as implausibly small for this essay's length.
     """
 
     essay_id: str
     scores: dict[str, int] | None
     raw: str
     attempts: int
+    system_fingerprint: str | None = None
+    fingerprint_changed: bool = False
+    prompt_tokens: int | None = None
+    truncated: bool = False
 
 
 def build_messages(essay_text: str, trait: str) -> list[dict[str, str]]:
@@ -225,15 +270,22 @@ def parse_score(raw: str, trait: str) -> int | None:
     return max(1, min(5, number))
 
 
-def _chat_once(config: JudgeConfig, messages: list[dict[str, str]]) -> str:
-    """POST one chat-completion request and return the assistant message content.
+@dataclass(frozen=True)
+class _ChatResponse:
+    """One parsed chat-completion response: content plus its provenance fields."""
 
-    Uses stdlib ``urllib``; passes ``temperature`` and ``seed`` for determinism and asks
-    for a JSON object via ``response_format`` (endpoints that ignore it still get the JSON
-    instruction in the prompt). Raises ``urllib.error.URLError`` / ``OSError`` on transport
-    failure and ``ValueError`` on an unparseable transport-level response body.
+    content: str
+    system_fingerprint: str | None
+    prompt_tokens: int | None
+
+
+def _build_payload(config: JudgeConfig, messages: list[dict[str, str]]) -> dict[str, object]:
+    """Assemble the request body, auto-pinning the OpenRouter provider route.
+
+    When ``base_url`` is OpenRouter and ``config.provider`` was not set explicitly, pins
+    ``provider`` to :data:`DEFAULT_OPENROUTER_PROVIDER` (see module docstring).
     """
-    payload = {
+    payload: dict[str, object] = {
         "model": config.model,
         "messages": messages,
         "temperature": config.temperature,
@@ -241,6 +293,30 @@ def _chat_once(config: JudgeConfig, messages: list[dict[str, str]]) -> str:
         "stream": False,
         "response_format": {"type": "json_object"},
     }
+    provider = config.provider
+    if provider is None and OPENROUTER_HOST in config.base_url:
+        provider = DEFAULT_OPENROUTER_PROVIDER
+    if provider:
+        payload["provider"] = provider
+    return payload
+
+
+def _looks_truncated(prompt_tokens: int | None, essay_text: str) -> bool:
+    """Flag ``prompt_tokens`` implausibly small for ``essay_text`` -- likely context truncation."""
+    if prompt_tokens is None:
+        return False
+    return prompt_tokens < len(essay_text) // _CHARS_PER_TOKEN_ESTIMATE
+
+
+def _chat_once(config: JudgeConfig, messages: list[dict[str, str]]) -> _ChatResponse:
+    """POST one chat-completion request and return the assistant message plus provenance.
+
+    Uses stdlib ``urllib``; passes ``temperature`` and ``seed`` for determinism and asks
+    for a JSON object via ``response_format`` (endpoints that ignore it still get the JSON
+    instruction in the prompt). Raises ``urllib.error.URLError`` / ``OSError`` on transport
+    failure and ``ValueError`` on an unparseable transport-level response body.
+    """
+    payload = _build_payload(config, messages)
     request = urllib.request.Request(
         f"{config.base_url.rstrip('/')}/chat/completions",
         data=json.dumps(payload).encode("utf-8"),
@@ -269,7 +345,19 @@ def _chat_once(config: JudgeConfig, messages: list[dict[str, str]]) -> str:
     content = message_fields.get("content")
     if not isinstance(content, str):
         raise ValueError("non-string content in response")
-    return content
+    fingerprint = body_fields.get("system_fingerprint")
+    usage = body_fields.get("usage")
+    prompt_tokens = None
+    if isinstance(usage, dict):
+        usage_fields = cast("dict[str, object]", usage)
+        raw_prompt_tokens = usage_fields.get("prompt_tokens")
+        if isinstance(raw_prompt_tokens, int) and not isinstance(raw_prompt_tokens, bool):
+            prompt_tokens = raw_prompt_tokens
+    return _ChatResponse(
+        content=content,
+        system_fingerprint=fingerprint if isinstance(fingerprint, str) else None,
+        prompt_tokens=prompt_tokens,
+    )
 
 
 def score_essay(config: JudgeConfig, essay_id: str, essay_text: str) -> JudgeResult:
@@ -280,24 +368,55 @@ def score_essay(config: JudgeConfig, essay_id: str, essay_text: str) -> JudgeRes
     trait's raw text, so a partial (some-traits-missing) result is never returned. A
     transport error on an attempt is treated like a parse failure (retried, then surfaced
     the same way), so one flaky call never silently corrupts the essay's scores.
+
+    Also tracks provenance across the 7 calls: ``fingerprint_changed`` if
+    ``system_fingerprint`` was not stable, and ``truncated`` from the last
+    ``prompt_tokens`` seen (see module docstring).
     """
     scores: dict[str, int] = {}
     raw = ""
     attempts = 0
+    fingerprints_seen: list[str] = []
+    last_prompt_tokens: int | None = None
     for trait in RUBRIC_TRAITS:
         messages = build_messages(essay_text, trait)
         trait_score: int | None = None
         for _ in range(config.max_retries + 1):
             attempts += 1
             try:
-                raw = _chat_once(config, messages)
+                response = _chat_once(config, messages)
             except (urllib.error.URLError, OSError, ValueError) as exc:
                 raw = f"<request-error: {exc}>"
                 continue
+            raw = response.content
+            if response.system_fingerprint is not None and (
+                not fingerprints_seen or fingerprints_seen[-1] != response.system_fingerprint
+            ):
+                fingerprints_seen.append(response.system_fingerprint)
+            if response.prompt_tokens is not None:
+                last_prompt_tokens = response.prompt_tokens
             trait_score = parse_score(raw, trait)
             if trait_score is not None:
                 break
         if trait_score is None:
-            return JudgeResult(essay_id=essay_id, scores=None, raw=raw, attempts=attempts)
+            return JudgeResult(
+                essay_id=essay_id,
+                scores=None,
+                raw=raw,
+                attempts=attempts,
+                system_fingerprint=fingerprints_seen[-1] if fingerprints_seen else None,
+                fingerprint_changed=len(set(fingerprints_seen)) > 1,
+                prompt_tokens=last_prompt_tokens,
+                truncated=_looks_truncated(last_prompt_tokens, essay_text),
+            )
         scores[trait] = trait_score
-    return JudgeResult(essay_id=essay_id, scores=scores, raw=raw, attempts=attempts)
+    return JudgeResult(
+        essay_id=essay_id,
+        scores=scores,
+        raw=raw,
+        attempts=attempts,
+        system_fingerprint=fingerprints_seen[-1] if fingerprints_seen else None,
+        fingerprint_changed=len(set(fingerprints_seen)) > 1,
+        prompt_tokens=last_prompt_tokens,
+        truncated=_looks_truncated(last_prompt_tokens, essay_text),
+    )

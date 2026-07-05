@@ -17,6 +17,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "examples"))
 
 import _ellipse_judge as ej
 
+# Bound once here (each needs the pyright ignore); every call site below uses the local
+# name, so this is the only place reportPrivateUsage needs suppressing.
+_ChatResponse = ej._ChatResponse  # type: ignore[reportPrivateUsage]
+_build_payload = ej._build_payload  # type: ignore[reportPrivateUsage]
+
 
 def test_parse_score_accepts_int_string_and_clamped_float() -> None:
     assert ej.parse_score('{"Grammar": 3}', "Grammar") == 3
@@ -47,10 +52,12 @@ def test_build_messages_isolates_the_single_trait() -> None:
 def test_score_essay_makes_one_call_per_trait(monkeypatch: object) -> None:
     calls: list[str] = []
 
-    def fake_chat_once(config: ej.JudgeConfig, messages: list[dict[str, str]]) -> str:
+    def fake_chat_once(config: ej.JudgeConfig, messages: list[dict[str, str]]) -> _ChatResponse:
         trait = next(t for t in ej.RUBRIC_TRAITS if t in messages[1]["content"])
         calls.append(trait)
-        return f'{{"{trait}": 3}}'
+        return _ChatResponse(
+            content=f'{{"{trait}": 3}}', system_fingerprint=None, prompt_tokens=None
+        )
 
     monkeypatch.setattr(ej, "_chat_once", fake_chat_once)  # type: ignore[attr-defined]
     result = ej.score_essay(ej.JudgeConfig(), "essay-1", "some essay text")
@@ -61,8 +68,8 @@ def test_score_essay_makes_one_call_per_trait(monkeypatch: object) -> None:
 
 
 def test_score_essay_fails_closed_with_no_partial_result(monkeypatch: object) -> None:
-    def fake_chat_once(config: ej.JudgeConfig, messages: list[dict[str, str]]) -> str:
-        return "unparseable"
+    def fake_chat_once(config: ej.JudgeConfig, messages: list[dict[str, str]]) -> _ChatResponse:
+        return _ChatResponse(content="unparseable", system_fingerprint=None, prompt_tokens=None)
 
     monkeypatch.setattr(ej, "_chat_once", fake_chat_once)  # type: ignore[attr-defined]
     config = ej.JudgeConfig(max_retries=1)
@@ -70,3 +77,78 @@ def test_score_essay_fails_closed_with_no_partial_result(monkeypatch: object) ->
 
     assert result.scores is None
     assert result.attempts == config.max_retries + 1  # stops at the first trait, retried
+
+
+def test_build_payload_pins_openrouter_to_openai_only_by_default() -> None:
+    config = ej.JudgeConfig(base_url="https://openrouter.ai/api/v1", model="openai/gpt-4o")
+    payload = _build_payload(config, [])
+    assert payload["provider"] == ej.DEFAULT_OPENROUTER_PROVIDER
+
+
+def test_build_payload_respects_explicit_provider_override() -> None:
+    config = ej.JudgeConfig(base_url="https://openrouter.ai/api/v1", provider={"order": ["azure"]})
+    payload = _build_payload(config, [])
+    assert payload["provider"] == {"order": ["azure"]}
+
+
+def test_build_payload_omits_provider_for_non_openrouter_backend() -> None:
+    config = ej.JudgeConfig(base_url=ej.DEFAULT_BASE_URL)
+    payload = _build_payload(config, [])
+    assert "provider" not in payload
+
+
+def test_score_essay_flags_fingerprint_change_across_calls(monkeypatch: object) -> None:
+    fingerprints = iter(["fp_a", "fp_a", "fp_b", "fp_b", "fp_b", "fp_b", "fp_b"])
+
+    def fake_chat_once(config: ej.JudgeConfig, messages: list[dict[str, str]]) -> _ChatResponse:
+        trait = next(t for t in ej.RUBRIC_TRAITS if t in messages[1]["content"])
+        return _ChatResponse(
+            content=f'{{"{trait}": 3}}', system_fingerprint=next(fingerprints), prompt_tokens=500
+        )
+
+    monkeypatch.setattr(ej, "_chat_once", fake_chat_once)  # type: ignore[attr-defined]
+    result = ej.score_essay(ej.JudgeConfig(), "essay-1", "x" * 100)
+
+    assert result.fingerprint_changed is True
+    assert result.system_fingerprint == "fp_b"  # last fingerprint seen
+
+
+def test_score_essay_does_not_flag_fingerprint_change_when_stable(monkeypatch: object) -> None:
+    def fake_chat_once(config: ej.JudgeConfig, messages: list[dict[str, str]]) -> _ChatResponse:
+        trait = next(t for t in ej.RUBRIC_TRAITS if t in messages[1]["content"])
+        return _ChatResponse(
+            content=f'{{"{trait}": 3}}', system_fingerprint="fp_a", prompt_tokens=500
+        )
+
+    monkeypatch.setattr(ej, "_chat_once", fake_chat_once)  # type: ignore[attr-defined]
+    result = ej.score_essay(ej.JudgeConfig(), "essay-1", "x" * 100)
+
+    assert result.fingerprint_changed is False
+    assert result.system_fingerprint == "fp_a"
+
+
+def test_score_essay_flags_truncation_when_prompt_tokens_below_essay_estimate(
+    monkeypatch: object,
+) -> None:
+    def fake_chat_once(config: ej.JudgeConfig, messages: list[dict[str, str]]) -> _ChatResponse:
+        trait = next(t for t in ej.RUBRIC_TRAITS if t in messages[1]["content"])
+        return _ChatResponse(content=f'{{"{trait}": 3}}', system_fingerprint="fp", prompt_tokens=5)
+
+    monkeypatch.setattr(ej, "_chat_once", fake_chat_once)  # type: ignore[attr-defined]
+    long_essay = "word " * 2000  # ~10,000 chars; prompt_tokens=5 is implausibly small
+    result = ej.score_essay(ej.JudgeConfig(), "essay-1", long_essay)
+
+    assert result.truncated is True
+
+
+def test_score_essay_not_truncated_when_prompt_tokens_plausible(monkeypatch: object) -> None:
+    def fake_chat_once(config: ej.JudgeConfig, messages: list[dict[str, str]]) -> _ChatResponse:
+        trait = next(t for t in ej.RUBRIC_TRAITS if t in messages[1]["content"])
+        return _ChatResponse(
+            content=f'{{"{trait}": 3}}', system_fingerprint="fp", prompt_tokens=9999
+        )
+
+    monkeypatch.setattr(ej, "_chat_once", fake_chat_once)  # type: ignore[attr-defined]
+    result = ej.score_essay(ej.JudgeConfig(), "essay-1", "short essay")
+
+    assert result.truncated is False
