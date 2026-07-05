@@ -79,6 +79,63 @@ def test_score_essay_fails_closed_with_no_partial_result(monkeypatch: object) ->
     assert result.attempts == config.max_retries + 1  # stops at the first trait, retried
 
 
+def test_build_messages_default_path_is_unchanged() -> None:
+    # Reproducibility guard: the committed pilot CSV and its pinned effect sizes were
+    # scored with the default prompt. The new opt-in flags must not perturb it, so the
+    # default output must still carry the holistic SCALE_ANCHORS and no reasoning field.
+    user = ej.build_messages("essay text", "Grammar")[1]["content"]
+    assert ej.SCALE_ANCHORS in user
+    assert "reasoning" not in user
+    assert 'Return exactly this JSON shape with an integer value 1-5: {"Grammar": <int>}' in user
+
+
+def test_trait_scoped_anchors_name_the_trait_and_differ_across_traits() -> None:
+    # The root cause of cross-call collapse: the 360-char holistic SCALE_ANCHORS is
+    # identical on all 7 calls and describes whole-essay proficiency, re-priming one
+    # holistic score per trait. Trait-scoped anchors must name the trait and differ.
+    grammar = ej.build_messages("essay", "Grammar", trait_scoped_anchors=True)[1]["content"]
+    syntax = ej.build_messages("essay", "Syntax", trait_scoped_anchors=True)[1]["content"]
+    assert "Grammar" in grammar and "Syntax" in syntax
+    # The scale-anchor block itself must differ between the two traits, not just the
+    # keyword line (which already differs in the default path).
+    assert ej.trait_scale_anchors("Grammar") != ej.trait_scale_anchors("Syntax")
+    assert ej.SCALE_ANCHORS not in grammar  # holistic block replaced, not appended
+
+
+def test_reasoning_prompt_asks_for_reasoning_before_the_score() -> None:
+    user = ej.build_messages("essay", "Vocabulary", reasoning=True)[1]["content"]
+    system = ej.build_messages("essay", "Vocabulary", reasoning=True)[0]["content"]
+    assert "reasoning" in user
+    # Reasoning key must precede the score key so the model writes it before committing.
+    assert user.index("reasoning") < user.index('"Vocabulary"')
+    # The default system prompt forbids explanation; the reasoning variant must not.
+    assert "no explanation" not in system
+
+
+def test_parse_score_ignores_a_reasoning_key() -> None:
+    # The reasoning variant returns {"reasoning": "...", "<trait>": <int>}; the parser
+    # must still pull the trait's integer and ignore the extra key.
+    assert ej.parse_score('{"reasoning": "many errors", "Grammar": 2}', "Grammar") == 2
+
+
+def test_score_essay_threads_prompt_flags_from_config(monkeypatch: object) -> None:
+    seen: list[str] = []
+
+    def fake_chat_once(config: ej.JudgeConfig, messages: list[dict[str, str]]) -> _ChatResponse:
+        seen.append(messages[1]["content"])
+        trait = next(t for t in ej.RUBRIC_TRAITS if t in messages[1]["content"])
+        return _ChatResponse(
+            content=f'{{"{trait}": 3}}', system_fingerprint=None, prompt_tokens=None
+        )
+
+    monkeypatch.setattr(ej, "_chat_once", fake_chat_once)  # type: ignore[attr-defined]
+    config = ej.JudgeConfig(reasoning=True, trait_scoped_anchors=True)
+    ej.score_essay(config, "essay-1", "some essay text")
+
+    assert all("reasoning" in prompt for prompt in seen)
+    assert all(ej.SCALE_ANCHORS not in prompt for prompt in seen)
+
+
 def test_build_payload_pins_openrouter_to_openai_only_by_default() -> None:
     config = ej.JudgeConfig(base_url="https://openrouter.ai/api/v1", model="openai/gpt-4o")
     payload = _build_payload(config, [])

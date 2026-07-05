@@ -114,6 +114,27 @@ SCALE_ANCHORS: str = (
     "1 = limited range loosely strung together, pervasive errors that impede in most cases."
 )
 
+
+def trait_scale_anchors(trait: str) -> str:
+    """1-5 anchors scoped to a single ``trait`` rather than holistic proficiency.
+
+    The default :data:`SCALE_ANCHORS` describes whole-essay proficiency ("overall
+    communication") and is sent identically on all 7 per-trait calls; that shared holistic
+    block re-primes one holistic impression per trait and is the leading suspect for the
+    cross-call score collapse (`docs/decisions/2026-07-04-e07-ellipse-human-rater-dif.md`,
+    "Adversarial check"). These anchors name the trait under review at every level, so the
+    scale block itself differs across traits instead of repeating. Opt in via
+    ``build_messages(..., trait_scoped_anchors=True)`` / ``JudgeConfig.trait_scoped_anchors``.
+    """
+    return (
+        f"5 = {trait} shows native-like control, rare negligible lapses; "
+        f"4 = {trait} is largely controlled, occasional lapses that rarely impede; "
+        f"3 = {trait} is limited to common cases, lapses sometimes impede; "
+        f"2 = {trait} is inconsistent, frequent lapses that impede in many instances; "
+        f"1 = {trait} is very limited, pervasive lapses that impede in most cases."
+    )
+
+
 _ENV_BASE_URL = "ELLIPSE_JUDGE_BASE_URL"
 _ENV_MODEL = "ELLIPSE_JUDGE_MODEL"
 _ENV_API_KEY = "ELLIPSE_JUDGE_API_KEY"
@@ -162,6 +183,8 @@ class JudgeConfig:
     timeout_s: float = 120.0
     max_retries: int = 2
     provider: Mapping[str, object] | None = None
+    reasoning: bool = False
+    trait_scoped_anchors: bool = False
 
     @classmethod
     def from_env(cls, **overrides: object) -> JudgeConfig:
@@ -204,26 +227,61 @@ class JudgeResult:
     truncated: bool = False
 
 
-def build_messages(essay_text: str, trait: str) -> list[dict[str, str]]:
+def build_messages(
+    essay_text: str,
+    trait: str,
+    *,
+    reasoning: bool = False,
+    trait_scoped_anchors: bool = False,
+) -> list[dict[str, str]]:
     """Assemble the chat messages to score ONE trait of one essay.
 
     The prompt template is committed here so the (model, prompt, seed) triple fully
     determines a score. ``/no_think`` in the system message disables chain-of-thought on
     models that honor it; non-thinking models ignore it. One call per trait, never all 7 in
     one prompt: batching induces halo/anchoring in some judges (see module docstring).
+
+    Two opt-in knobs address the residual cross-call score collapse diagnosed in
+    ``docs/decisions/2026-07-04-e07-ellipse-human-rater-dif.md``; both default off so the
+    committed pilot's ``(model, prompt, seed)`` triple, and therefore its scored CSV, is
+    unchanged:
+
+    - ``trait_scoped_anchors``: replace the shared holistic :data:`SCALE_ANCHORS` (identical
+      on all 7 calls, describing whole-essay proficiency) with :func:`trait_scale_anchors`,
+      which names the trait at every scale level so the anchor block differs per trait.
+    - ``reasoning``: require a one-sentence justification of THIS trait before the integer
+      score (``{"reasoning": ..., "<trait>": <int>}``), giving the model room to reach a
+      trait-specific judgment instead of falling back to a fast holistic guess. The system
+      prompt's "no explanation" clause is lifted when this is on; :func:`parse_score` already
+      ignores the extra key.
     """
-    system = (
-        "/no_think\n"
-        "You are a trained rater scoring essays by English language learners on the "
-        "ELLIPSE analytic rubric. Score strictly and consistently. Respond with ONLY a "
-        "JSON object, no prose, no explanation, no chain-of-thought."
-    )
+    anchors = trait_scale_anchors(trait) if trait_scoped_anchors else SCALE_ANCHORS
+    if reasoning:
+        system = (
+            "/no_think\n"
+            "You are a trained rater scoring essays by English language learners on the "
+            "ELLIPSE analytic rubric. Score strictly and consistently, judging ONLY the "
+            "one named dimension independently of the others. Respond with ONLY a JSON "
+            "object."
+        )
+        shape = (
+            f'Return exactly this JSON shape, reasoning first: {{"reasoning": '
+            f'"<one sentence about {trait} specifically>", "{trait}": <int 1-5>}}'
+        )
+    else:
+        system = (
+            "/no_think\n"
+            "You are a trained rater scoring essays by English language learners on the "
+            "ELLIPSE analytic rubric. Score strictly and consistently. Respond with ONLY a "
+            "JSON object, no prose, no explanation, no chain-of-thought."
+        )
+        shape = f'Return exactly this JSON shape with an integer value 1-5: {{"{trait}": <int>}}'
     user = (
         f"Score this essay on ONE dimension only: {trait}. The score is an integer from "
         "1 to 5.\n\n"
-        f"Scale anchors: {SCALE_ANCHORS}\n\n"
+        f"Scale anchors: {anchors}\n\n"
         f"Keyword rubric for {trait}: {TRAIT_KEYWORDS[trait]}\n\n"
-        f'Return exactly this JSON shape with an integer value 1-5: {{"{trait}": <int>}}\n\n'
+        f"{shape}\n\n"
         f'Essay:\n"""\n{essay_text}\n"""'
     )
     return [
@@ -379,7 +437,12 @@ def score_essay(config: JudgeConfig, essay_id: str, essay_text: str) -> JudgeRes
     fingerprints_seen: list[str] = []
     last_prompt_tokens: int | None = None
     for trait in RUBRIC_TRAITS:
-        messages = build_messages(essay_text, trait)
+        messages = build_messages(
+            essay_text,
+            trait,
+            reasoning=config.reasoning,
+            trait_scoped_anchors=config.trait_scoped_anchors,
+        )
         trait_score: int | None = None
         for _ in range(config.max_retries + 1):
             attempts += 1
