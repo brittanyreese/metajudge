@@ -52,6 +52,7 @@ import math
 import sys
 from collections.abc import Hashable
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pandas as pd
 
@@ -60,6 +61,11 @@ from audit_ellipse import ALL_TRAITS, ANALYTIC_TRAITS, FOCAL, REFERENCE, load_me
 
 from metajudge.data import Ratings
 from metajudge.dif import DifResult, cluster_bootstrap_dif, logistic_dif
+
+if TYPE_CHECKING:
+    # Judge module is imported lazily at call time (keeps the default audit path
+    # endpoint-free); this import exists only for the return-type annotation.
+    from _ellipse_judge import JudgeConfig
 
 HERE = Path(__file__).parent
 DEFAULT_CSV = HERE / "data" / "ellipse_llm_pilot_qwen2.5-7b.csv"
@@ -114,6 +120,26 @@ def _append_row(out_path: Path, row: dict[str, object]) -> None:
     frame.to_csv(out_path, mode="a", header=write_header, index=False)
 
 
+def judge_config_from_args(args: argparse.Namespace) -> JudgeConfig:
+    """Build a ``JudgeConfig`` from parsed CLI args, threading the prompt-variant flags.
+
+    ``--reasoning`` and ``--trait-scoped-anchors`` opt into the collapse-mitigation prompt
+    (``docs/decisions/2026-07-04-e07-ellipse-human-rater-dif.md``); both default off, so a
+    plain ``--regenerate`` reproduces the committed pilot CSV byte-for-byte. Imports
+    ``JudgeConfig`` lazily for the same reason ``regenerate`` does: the default audit path
+    never needs the judge module.
+    """
+    from _ellipse_judge import JudgeConfig
+
+    return JudgeConfig.from_env(
+        base_url=args.base_url,
+        model=args.model,
+        api_key=args.api_key,
+        reasoning=args.reasoning,
+        trait_scoped_anchors=args.trait_scoped_anchors,
+    )
+
+
 def regenerate(args: argparse.Namespace) -> None:
     """Score the pilot essays with the LLM judge, appending to the scores CSV.
 
@@ -123,12 +149,13 @@ def regenerate(args: argparse.Namespace) -> None:
     """
     # Imported here so the default AUDIT path never imports the judge (keeps the audit
     # runnable with no endpoint) and an import error can't break reproduction.
-    from _ellipse_judge import JudgeConfig, score_essay
+    from _ellipse_judge import score_essay
 
-    config = JudgeConfig.from_env(base_url=args.base_url, model=args.model, api_key=args.api_key)
+    config = judge_config_from_args(args)
     print(
         f"Judge: model={config.model} base_url={config.base_url} temp={config.temperature} "
-        f"seed={config.seed}"
+        f"seed={config.seed} reasoning={config.reasoning} "
+        f"trait_scoped_anchors={config.trait_scoped_anchors}"
     )
     args.out.parent.mkdir(parents=True, exist_ok=True)
     pilot = select_pilot(load_merged())
@@ -283,6 +310,18 @@ def main() -> None:
     parser.add_argument("--base-url", default=None, help="OpenAI-compatible base URL")
     parser.add_argument("--model", default=None, help="model id served at --base-url")
     parser.add_argument("--api-key", default=None, help="bearer token (unused by local servers)")
+    parser.add_argument(
+        "--reasoning",
+        action="store_true",
+        help="require a one-sentence justification before each trait score "
+        "(collapse mitigation; off reproduces the committed pilot)",
+    )
+    parser.add_argument(
+        "--trait-scoped-anchors",
+        action="store_true",
+        help="use per-trait scale anchors instead of the shared holistic block "
+        "(collapse mitigation; off reproduces the committed pilot)",
+    )
     parser.add_argument(
         "--out", type=Path, default=DEFAULT_CSV, help="scores CSV path (regenerate)"
     )
