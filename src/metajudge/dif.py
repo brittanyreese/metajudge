@@ -38,8 +38,8 @@ from metajudge._constants import MIN_EFFECTIVE
 from metajudge.data import Ratings
 
 # Jodoin & Gierl (2001) Nagelkerke R-squared change thresholds.
-_JG_NEGLIGIBLE = 0.035
-_JG_LARGE = 0.070
+_JG_NEGLIGIBLE = 0.0376
+_JG_LARGE = 0.0757
 
 # Jodoin & Gierl calibrated the A/B/C thresholds on educational-testing samples of >=500
 # examinees. Below that the R-squared-change bands overlap and the class is indicative, not
@@ -241,15 +241,18 @@ class DifResult:
 def _classify_jodoin_gierl(r2_delta: float) -> str:
     """Map a Nagelkerke R-squared change to an A/B/C DIF magnitude class.
 
-    Jodoin & Gierl (2001): negligible (A) below 0.035, moderate (B) in
-    ``[0.035, 0.070)``, large (C) at or above 0.070. These are an R-squared magnitude
-    rule, not the ETS Mantel-Haenszel delta classification.
+    Negligible (A) below 0.0376, moderate (B) in ``[0.0376, 0.0757)``, large (C) at or
+    above 0.0757. These are an R-squared magnitude rule, not the ETS Mantel-Haenszel
+    delta classification.
 
-    Jodoin & Gierl calibrated these thresholds on the two-category (dichotomous)
-    logistic R-squared change; applying them to the ordinal proportional-odds
-    Nagelkerke change here follows lordif convention (Choi, Gibbons & Crane, 2011)
-    rather than a direct validation of the ordinal case. See
-    docs/decisions/2026-06-22-e07-dif-ordinal-logistic-regression.md.
+    Jodoin & Gierl (2001) calibrated the original 0.035/0.070 bands on the two-category
+    (dichotomous) logistic R-squared change. The thresholds here are that same DIF
+    magnitude (the uniform-DIF log-odds shift ``b2``) re-read on the ordinal
+    proportional-odds Nagelkerke change instead, derived by Monte Carlo on this repo's
+    cumulative-logit DGP. See
+    docs/decisions/2026-07-05-e07-ordinal-dif-band-derivation.md (derivation) and
+    docs/decisions/2026-06-22-e07-dif-ordinal-logistic-regression.md (the original
+    dichotomous-to-ordinal transfer caveat this record resolves).
 
     Returns ``"?"`` when ``r2_delta`` is NaN (signals an optimization failure upstream).
     """

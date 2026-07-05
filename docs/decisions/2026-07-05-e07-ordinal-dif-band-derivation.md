@@ -1,6 +1,6 @@
 # E07 DIF: empirical derivation of the ordinal-PO Jodoin-Gierl A/B/C bands
 
-Date: 2026-07-05 Status: proposed (empirical finding recorded; the constants-update decision below is open)
+Date: 2026-07-05 Status: accepted (constants updated 2026-07-05; see "Resolution" below)
 
 ## Context
 
@@ -27,12 +27,16 @@ For reference, converting the field's other candidate cutoffs to the same ordina
 
 **The SummEval demo's headline class-A result is stable under every candidate threshold.** Its observed ordinal R-squared change is 0.002. Margin below each candidate A/B boundary: 10x (lordif 0.02), 17.5x (shipped 0.035), 18.8x (derived 0.0376). All three classify it class A. The miscalibration this study measures does not change any number this repo has already reported.
 
-## Decision: shipped constants unchanged, pending a call on updating them
+## Resolution (2026-07-05): constants moved to the derived values
 
-`_JG_NEGLIGIBLE = 0.035` and `_JG_LARGE = 0.070` in `src/metajudge/dif.py` are **not** changed by this record. Two things are true at once and the second has not been decided:
+`_JG_NEGLIGIBLE` and `_JG_LARGE` in `src/metajudge/dif.py` are updated from the shipped dichotomous-calibrated 0.035/0.070 to the derived ordinal-PO **0.0376/0.0757**. Rationale for deciding now rather than deferring:
 
-1. The miscalibration is now measured, not assumed: ~7-8% relative, in the liberal direction, within one DGP family (cumulative-logit, 5-category, this repo's stratum sizes and rater counts). This is a narrower correction than the overlap-threshold recalibration (`2026-07-02-e07-overlap-threshold-calibration.md`, which moved a constant by 3.5x), and it does not flip any classification this repo has reported so far.
-2. Whether to move `_JG_NEGLIGIBLE`/`_JG_LARGE` to the derived 0.0376/0.0757 is a judgment call this record does not make: doing so is a small breaking change to every future DIF classification near the boundary, and (per `AGENTS.md`) any previously reported number is tagged to the exact commit that produced it, so a constant change does not retroactively invalidate a citation but does mean "class B" on a fresh run and "class B" on an old tagged run could mean measurably different things at the margin. That trade-off (scientific accuracy of a ~7-8% shift vs. threshold stability across releases) is for a maintainer to decide, not to default.
+1. The derived values are a direct empirical fit for the statistic this repo actually computes (ordinal PO Nagelkerke R-squared change), not an inherited convention from a different regime (dichotomous logistic R-squared). Once the miscalibration is measured, keeping the less-accurate constant is not a neutral default; it is the choice to keep a documented liberal bias.
+2. `2026-07-02-e07-overlap-threshold-calibration.md` already set the precedent of moving a shipped constant from stated-convention to measured value on this repo (a larger, 3.5x move). This is a smaller instance of the same policy.
+3. Timing: this repo is pre-publish (`dev` unmerged, nothing tagged on `main` yet), so the stability cost the original decision worried about (a future "class B" not matching a past tagged "class B" at the margin) is close to zero right now. Moving the constant after publishing and tagging results would manufacture that exact comparability problem; moving it now is the cheapest point in the project's history to do it.
+4. No reported result changes classification: the SummEval demo's headline class-A result (R-squared change 0.002) stays class A under both the old and new thresholds (17.5x vs. 18.8x margin below the respective A/B boundary).
+
+One pinned test fixture's expected class did change: `test_matches_pinned_oracle_with_external_conditioner` (`tests/test_dif.py`) has R-squared change 0.074462, which sits between the old C cutoff (0.070) and the new one (0.0757); its expected `dif_class` moved from `"C"` to `"B"`. This is exactly the margin case anticipated in the original decision text, not a numerical bug. `_classify_jodoin_gierl`'s boundary test and two `sim` validation tests were updated to the new threshold values; no simulation or oracle logic changed.
 
 ## Limits
 

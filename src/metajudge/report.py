@@ -275,14 +275,14 @@ class ReportCard:
         if bt.ci_method == "bca":
             caveat = (
                 "  Caveat: the flag compares a bias-corrected accelerated (BCa) CI bound to the "
-                f"Jodoin-Gierl {_JG_NEGLIGIBLE:.3f} boundary. BCa corrects the percentile bias, "
+                f"Jodoin-Gierl {_JG_NEGLIGIBLE:.4f} boundary. BCa corrects the percentile bias, "
                 "but the bound is still an estimate; read the point estimate and CI alongside "
                 "the label."
             )
         else:
             caveat = (
                 "  Caveat: the flag rests on a percentile CI bound compared to the "
-                f"Jodoin-Gierl {_JG_NEGLIGIBLE:.3f} boundary (BCa was undefined at this "
+                f"Jodoin-Gierl {_JG_NEGLIGIBLE:.4f} boundary (BCa was undefined at this "
                 "0-bounded statistic). The percentile method is least accurate at the boundary, "
                 "so a verdict from a bound sitting near it is fragile; read the point estimate "
                 "and CI, not the label alone."

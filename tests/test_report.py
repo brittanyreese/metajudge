@@ -333,7 +333,7 @@ def test_flags_dif_robustly_nonnegligible_true_when_ci_clears_band() -> None:
         alpha=_card(converged=True).alpha,
         icc=_card(converged=True).icc,
         dif=_card(converged=True).dif,
-        dif_bootstrap=_bootstrap(r2_low=0.05, r2_high=0.12),  # lower bound above 0.035
+        dif_bootstrap=_bootstrap(r2_low=0.05, r2_high=0.12),  # lower bound above 0.0376
     )
     assert card.flags.dif_robustly_nonnegligible is True
 

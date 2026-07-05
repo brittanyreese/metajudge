@@ -289,10 +289,13 @@ def test_matches_pinned_oracle_with_external_conditioner() -> None:
     assert res.p_uniform == pytest.approx(_OR_P_UNIFORM, abs=1e-5)
     assert res.p_nonuniform == pytest.approx(_OR_P_NONUNIFORM, abs=1e-4)
     assert res.nagelkerke_r2_delta == pytest.approx(_OR_NAGELKERKE_R2_DELTA, abs=1e-3)
-    # uniform DIF strong, nonuniform absent; R2 delta just over the JG 0.070 cutoff.
+    # uniform DIF strong, nonuniform absent. R2 delta (0.0745) sits between the shipped
+    # dichotomous-calibrated C cutoff (0.070) and the derived ordinal-PO one (0.0757),
+    # so this pinned fixture classifies B under the derived thresholds now in effect
+    # (docs/decisions/2026-07-05-e07-ordinal-dif-band-derivation.md).
     assert res.p_uniform < 0.05
     assert res.p_nonuniform > 0.05
-    assert res.dif_class == "C"
+    assert res.dif_class == "B"
 
 
 def test_conditioner_group_corr_matches_corrcoef() -> None:
@@ -424,10 +427,10 @@ def test_jodoin_gierl_classification_boundaries() -> None:
     assert _classify_jodoin_gierl(0.05) == "B"
     assert _classify_jodoin_gierl(0.10) == "C"
     # boundary handling (a project convention; Jodoin & Gierl state the bands, not the
-    # strict-vs-closed endpoints): < 0.035 is A, [0.035, 0.070) is B, >= 0.070 is C
-    assert _classify_jodoin_gierl(0.0349) == "A"
-    assert _classify_jodoin_gierl(0.035) == "B"
-    assert _classify_jodoin_gierl(0.070) == "C"
+    # strict-vs-closed endpoints): < 0.0376 is A, [0.0376, 0.0757) is B, >= 0.0757 is C
+    assert _classify_jodoin_gierl(0.0375) == "A"
+    assert _classify_jodoin_gierl(0.0376) == "B"
+    assert _classify_jodoin_gierl(0.0757) == "C"
 
 
 def test_rest_score_path_matches_pinned_oracle() -> None:
