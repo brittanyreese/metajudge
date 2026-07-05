@@ -14,10 +14,17 @@ For models that emit chain-of-thought, thinking is disabled two ways: a ``/no_th
 directive in the system prompt (honored by Qwen3 / GLM style models) and a defensive
 ``<think>...</think>`` strip on the raw completion.
 
-The judge asks for STRUCTURED JSON (one integer rubric score per trait) and parses it
-robustly, with a bounded retry on parse failure; an essay that still fails to parse is
-returned as a ``JudgeResult`` with ``scores=None`` and the offending raw text, never
-silently dropped.
+Each essay is scored with ONE CHAT-COMPLETION CALL PER TRAIT, never all 7 traits in a single
+call. Batching all 7 traits into one JSON response was tried first and induces halo/anchoring
+in some judges (confirmed on GPT-4o: batched, it collapsed all 7 scores to one repeated value
+on the majority of essays; asked one trait at a time, it differentiated normally). Per-trait
+calls cost more tokens (~7x the calls) but that is the correctness floor, not a shortcut to
+skip.
+
+The judge asks for STRUCTURED JSON (one integer rubric score for the trait) per call and
+parses it robustly, with a bounded per-trait retry on parse failure; an essay where any trait
+still fails to parse after retries is returned as a ``JudgeResult`` with ``scores=None`` and
+the offending raw text, never silently dropped or partially filled.
 """
 
 from __future__ import annotations
@@ -152,15 +159,14 @@ class JudgeResult:
     attempts: int
 
 
-def build_messages(essay_text: str) -> list[dict[str, str]]:
-    """Assemble the chat messages for one essay: pinned system + rubric + essay.
+def build_messages(essay_text: str, trait: str) -> list[dict[str, str]]:
+    """Assemble the chat messages to score ONE trait of one essay.
 
     The prompt template is committed here so the (model, prompt, seed) triple fully
     determines a score. ``/no_think`` in the system message disables chain-of-thought on
-    models that honor it; non-thinking models ignore it.
+    models that honor it; non-thinking models ignore it. One call per trait, never all 7 in
+    one prompt: batching induces halo/anchoring in some judges (see module docstring).
     """
-    trait_lines = "\n".join(f"- {trait}: {TRAIT_KEYWORDS[trait]}" for trait in RUBRIC_TRAITS)
-    keys = ", ".join(f'"{trait}"' for trait in RUBRIC_TRAITS)
     system = (
         "/no_think\n"
         "You are a trained rater scoring essays by English language learners on the "
@@ -168,11 +174,11 @@ def build_messages(essay_text: str) -> list[dict[str, str]]:
         "JSON object, no prose, no explanation, no chain-of-thought."
     )
     user = (
-        "Score this essay on each dimension using its keyword rubric. Each score is an "
-        "integer from 1 to 5.\n\n"
+        f"Score this essay on ONE dimension only: {trait}. The score is an integer from "
+        "1 to 5.\n\n"
         f"Scale anchors: {SCALE_ANCHORS}\n\n"
-        f"Dimensions and keyword rubric:\n{trait_lines}\n\n"
-        f"Return exactly this JSON shape with integer values 1-5: {{{keys}}}\n\n"
+        f"Keyword rubric for {trait}: {TRAIT_KEYWORDS[trait]}\n\n"
+        f'Return exactly this JSON shape with an integer value 1-5: {{"{trait}": <int>}}\n\n'
         f'Essay:\n"""\n{essay_text}\n"""'
     )
     return [
@@ -181,13 +187,13 @@ def build_messages(essay_text: str) -> list[dict[str, str]]:
     ]
 
 
-def parse_scores(raw: str) -> dict[str, int] | None:
-    """Parse a completion into a full trait -> int(1-5) map, or ``None`` on any failure.
+def parse_score(raw: str, trait: str) -> int | None:
+    """Parse a completion into a single 1-5 int for ``trait``, or ``None`` on any failure.
 
     Strips any ``<think>`` block, extracts the first ``{...}`` span, JSON-decodes it, and
-    requires every rubric trait present with a value coercible to an integer clamped to
-    1-5. A missing trait, a non-numeric value, or malformed JSON all return ``None`` so the
-    caller can retry or log.
+    requires ``trait`` present with a value coercible to an integer clamped to 1-5. A
+    missing key, a non-numeric value, or malformed JSON all return ``None`` so the caller
+    can retry or log.
     """
     cleaned = _THINK_BLOCK.sub("", raw).strip()
     match = _JSON_OBJECT.search(cleaned)
@@ -200,26 +206,23 @@ def parse_scores(raw: str) -> dict[str, int] | None:
     if not isinstance(obj, dict):
         return None
     fields = cast("dict[str, object]", obj)
-    scores: dict[str, int] = {}
-    for trait in RUBRIC_TRAITS:
-        if trait not in fields:
+    if trait not in fields:
+        return None
+    value = fields[trait]
+    if isinstance(value, bool):  # bool is an int subclass; reject it explicitly
+        return None
+    if isinstance(value, int):
+        number = value
+    elif isinstance(value, float) and value.is_integer():
+        number = int(value)
+    elif isinstance(value, str):
+        digits = re.search(r"-?\d+", value)
+        if digits is None:
             return None
-        value = fields[trait]
-        if isinstance(value, bool):  # bool is an int subclass; reject it explicitly
-            return None
-        if isinstance(value, int):
-            number = value
-        elif isinstance(value, float) and value.is_integer():
-            number = int(value)
-        elif isinstance(value, str):
-            digits = re.search(r"-?\d+", value)
-            if digits is None:
-                return None
-            number = int(digits.group(0))
-        else:
-            return None
-        scores[trait] = max(1, min(5, number))
-    return scores
+        number = int(digits.group(0))
+    else:
+        return None
+    return max(1, min(5, number))
 
 
 def _chat_once(config: JudgeConfig, messages: list[dict[str, str]]) -> str:
@@ -270,23 +273,31 @@ def _chat_once(config: JudgeConfig, messages: list[dict[str, str]]) -> str:
 
 
 def score_essay(config: JudgeConfig, essay_id: str, essay_text: str) -> JudgeResult:
-    """Score one essay, retrying up to ``config.max_retries`` times on a parse failure.
+    """Score one essay with one call per trait, retrying each up to ``config.max_retries``.
 
-    Returns a :class:`JudgeResult`. A transport error on an attempt is treated like a
-    parse failure (retried, then surfaced as ``scores=None`` with the error text in
-    ``raw``), so one flaky call never aborts a batch.
+    Returns a :class:`JudgeResult`. All 7 traits must parse for a success; if any trait
+    exhausts its retries, scoring stops there and ``scores=None`` is returned with that
+    trait's raw text, so a partial (some-traits-missing) result is never returned. A
+    transport error on an attempt is treated like a parse failure (retried, then surfaced
+    the same way), so one flaky call never silently corrupts the essay's scores.
     """
-    messages = build_messages(essay_text)
+    scores: dict[str, int] = {}
     raw = ""
     attempts = 0
-    for _ in range(config.max_retries + 1):
-        attempts += 1
-        try:
-            raw = _chat_once(config, messages)
-        except (urllib.error.URLError, OSError, ValueError) as exc:
-            raw = f"<request-error: {exc}>"
-            continue
-        scores = parse_scores(raw)
-        if scores is not None:
-            return JudgeResult(essay_id=essay_id, scores=scores, raw=raw, attempts=attempts)
-    return JudgeResult(essay_id=essay_id, scores=None, raw=raw, attempts=attempts)
+    for trait in RUBRIC_TRAITS:
+        messages = build_messages(essay_text, trait)
+        trait_score: int | None = None
+        for _ in range(config.max_retries + 1):
+            attempts += 1
+            try:
+                raw = _chat_once(config, messages)
+            except (urllib.error.URLError, OSError, ValueError) as exc:
+                raw = f"<request-error: {exc}>"
+                continue
+            trait_score = parse_score(raw, trait)
+            if trait_score is not None:
+                break
+        if trait_score is None:
+            return JudgeResult(essay_id=essay_id, scores=None, raw=raw, attempts=attempts)
+        scores[trait] = trait_score
+    return JudgeResult(essay_id=essay_id, scores=scores, raw=raw, attempts=attempts)
