@@ -1,0 +1,28 @@
+# metajudge report card: ELLIPSE LLM-judge DIF (single judge)
+
+LLM judge scores: 300 essays, per-stratum N: {'Asian/Pacific Islander': 150, 'Hispanic/Latino': 150}
+Focal (Asian/Pacific Islander) vs reference (Hispanic/Latino). Reliability pillar N/A (one judge).
+
+## Vocabulary
+- Asian/Pacific Islander vs Hispanic/Latino (external conditioner, single judge, n_obs=300)
+- Effect size (Nagelkerke R2 delta): 0.0042 (Jodoin-Gierl class A)
+- Clustering-robust R2 delta 95% bca CI [0.0001, 0.0167] (400/400 resamples, reliable=True)
+- Uniform DIF: chi2(1)=0.89, p=0.3455 [analytic, unclustered]
+- Nonuniform DIF: chi2(1)=1.96, p=0.1611 [analytic, unclustered]
+- Conditioner-group correlation: 0.074 (overlap_weak=False)
+
+## Syntax
+- Asian/Pacific Islander vs Hispanic/Latino (external conditioner, single judge, n_obs=300)
+- Effect size (Nagelkerke R2 delta): 0.0009 (Jodoin-Gierl class A)
+- Clustering-robust R2 delta 95% bca CI [0.0000, 0.0046] (400/400 resamples, reliable=True)
+- Uniform DIF: chi2(1)=0.50, p=0.4792 [analytic, unclustered]
+- Nonuniform DIF: chi2(1)=0.22, p=0.6394 [analytic, unclustered]
+- Conditioner-group correlation: 0.069 (overlap_weak=False)
+
+## Overall
+- Asian/Pacific Islander vs Hispanic/Latino (external conditioner, single judge, n_obs=300)
+- Effect size (Nagelkerke R2 delta): 0.0078 (Jodoin-Gierl class A)
+- Clustering-robust R2 delta 95% bca CI [0.0005, 0.0208] (400/400 resamples, reliable=True)
+- Uniform DIF: chi2(1)=0.78, p=0.3776 [analytic, unclustered]
+- Nonuniform DIF: chi2(1)=2.51, p=0.1129 [analytic, unclustered]
+- Conditioner-group correlation: 0.072 (overlap_weak=False)

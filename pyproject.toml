@@ -86,6 +86,11 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 
 [tool.pyright]
 include = ["src", "tests", "sim", "scripts"]
+# "examples" is intentionally not in `include` (not strict-checked as first-party source),
+# but tests/test_ellipse_judge_scorer.py imports examples/_ellipse_judge.py the same way
+# examples/audit_ellipse_llm.py does at runtime (script dir on sys.path), so it needs to be
+# resolvable here too.
+extraPaths = ["examples"]
 typeCheckingMode = "strict"
 pythonVersion = "3.11"
 
