@@ -18,7 +18,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent / "examples"))
 
 import ablation_knob_attribution as abl
-from _ellipse_judge import JudgeResult
+from _ellipse_judge import JudgeConfig, JudgeResult
 
 
 def _synthetic_merged(n_focal: int, n_reference: int) -> pd.DataFrame:
@@ -164,3 +164,142 @@ def test_summarize_arm_counts_fingerprint_changed_and_truncated_regardless_of_pa
     summary = abl.summarize_arm("reasoning_only", results)
     assert summary.n_fingerprint_changed == 1
     assert summary.n_truncated == 1
+
+
+def test_run_arm_scores_every_essay_and_writes_resumable_csv(tmp_path: Path) -> None:
+    sample = pd.DataFrame(
+        {
+            "text_id_kaggle": ["a", "b"],
+            "race_ethnicity": ["Asian/Pacific Islander", "Hispanic/Latino"],
+            "Text": ["essay a", "essay b"],
+        }
+    )
+    calls: list[str] = []
+
+    def fake_score_essay(config: JudgeConfig, essay_id: str, essay_text: str) -> JudgeResult:
+        calls.append(essay_id)
+        return JudgeResult(
+            essay_id=essay_id,
+            scores={"Overall": 2, "Cohesion": 2, "Syntax": 2},
+            raw="{}",
+            attempts=1,
+        )
+
+    out_path = tmp_path / "arm.csv"
+    config = abl.judge_config_for_arm("reasoning_only", base_url=None, model=None, api_key=None)
+    summary = abl.run_arm(
+        "reasoning_only", config, sample, out_path, score_essay_fn=fake_score_essay
+    )
+    assert calls == ["a", "b"]
+    assert summary.n_essays == 2
+    assert summary.n_scored == 2
+    assert summary.n_collapsed == 2
+    assert out_path.exists()
+
+
+def test_run_arm_skips_already_scored_essays_on_resume(tmp_path: Path) -> None:
+    sample = pd.DataFrame(
+        {
+            "text_id_kaggle": ["a", "b"],
+            "race_ethnicity": ["Asian/Pacific Islander", "Hispanic/Latino"],
+            "Text": ["essay a", "essay b"],
+        }
+    )
+    calls: list[str] = []
+
+    def fake_score_essay(config: JudgeConfig, essay_id: str, essay_text: str) -> JudgeResult:
+        calls.append(essay_id)
+        return JudgeResult(
+            essay_id=essay_id,
+            scores={"Overall": 3, "Cohesion": 4, "Syntax": 2},
+            raw="{}",
+            attempts=1,
+        )
+
+    out_path = tmp_path / "arm.csv"
+    config = abl.judge_config_for_arm("reasoning_only", base_url=None, model=None, api_key=None)
+    # First run scores both essays.
+    abl.run_arm("reasoning_only", config, sample, out_path, score_essay_fn=fake_score_essay)
+    calls.clear()
+    # Second run against the same out_path must not re-score anything.
+    summary = abl.run_arm(
+        "reasoning_only", config, sample, out_path, score_essay_fn=fake_score_essay
+    )
+    assert calls == []
+    assert summary.n_essays == 2
+    assert summary.n_scored == 2
+
+
+def test_run_arm_tracks_fingerprint_changed_and_truncated_essays(tmp_path: Path) -> None:
+    sample = pd.DataFrame(
+        {
+            "text_id_kaggle": ["a", "b"],
+            "race_ethnicity": ["Asian/Pacific Islander", "Hispanic/Latino"],
+            "Text": ["essay a", "essay b"],
+        }
+    )
+
+    def fake_score_essay(config: JudgeConfig, essay_id: str, essay_text: str) -> JudgeResult:
+        if essay_id == "a":
+            return JudgeResult(
+                essay_id="a",
+                scores={"Overall": 2, "Cohesion": 3},
+                raw="{}",
+                attempts=1,
+                fingerprint_changed=True,
+            )
+        return JudgeResult(
+            essay_id="b",
+            scores={"Overall": 4, "Cohesion": 4},
+            raw="{}",
+            attempts=1,
+            truncated=True,
+        )
+
+    out_path = tmp_path / "arm.csv"
+    config = abl.judge_config_for_arm("reasoning_only", base_url=None, model=None, api_key=None)
+    summary = abl.run_arm(
+        "reasoning_only", config, sample, out_path, score_essay_fn=fake_score_essay
+    )
+    assert summary.n_fingerprint_changed == 1
+    assert summary.n_truncated == 1
+
+
+def test_format_report_includes_both_arms_and_baselines() -> None:
+    summaries = {
+        "reasoning_only": abl.ArmSummary(
+            arm="reasoning_only",
+            n_essays=40,
+            n_scored=40,
+            n_failed=0,
+            n_collapsed=6,
+            collapse_rate=0.15,
+            n_fingerprint_changed=0,
+            n_truncated=0,
+        ),
+        "trait_scoped_anchors_only": abl.ArmSummary(
+            arm="trait_scoped_anchors_only",
+            n_essays=40,
+            n_scored=40,
+            n_failed=0,
+            n_collapsed=18,
+            collapse_rate=0.45,
+            n_fingerprint_changed=1,
+            n_truncated=0,
+        ),
+    }
+    report = abl.format_report(summaries)
+    assert "reasoning_only" in report
+    assert "trait_scoped_anchors_only" in report
+    assert "0.60" in report or "60" in report  # default baseline surfaced
+    assert "0.08" in report or "8" in report  # both-flags baseline surfaced
+
+
+def test_main_dry_run_makes_no_network_call(monkeypatch: pytest.MonkeyPatch) -> None:
+    import urllib.request
+
+    def _fail_if_called(*args: object, **kwargs: object) -> object:
+        raise AssertionError("dry-run must not open any network connection")
+
+    monkeypatch.setattr(urllib.request, "urlopen", _fail_if_called)
+    abl.main(["--dry-run"])  # must return normally, touching no network

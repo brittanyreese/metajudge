@@ -27,7 +27,9 @@ Two modes, same as ``audit_ellipse_llm.py``:
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+import argparse
+import sys
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -157,3 +159,183 @@ def summarize_arm(arm: str, results: list[JudgeResult]) -> ArmSummary:
         n_fingerprint_changed=sum(1 for r in results if r.fingerprint_changed),
         n_truncated=sum(1 for r in results if r.truncated),
     )
+
+
+_ROW_COLUMNS = [
+    "text_id_kaggle",
+    "race_ethnicity",
+    "scored",
+    "collapsed",
+    "fingerprint_changed",
+    "truncated",
+    "attempts",
+]
+
+
+def _already_scored(out_path: Path) -> set[str]:
+    """Essay ids already present in an arm's output CSV (resumable runs)."""
+    if not out_path.exists():
+        return set()
+    done = pd.read_csv(out_path, usecols=["text_id_kaggle"])
+    return {str(x) for x in done["text_id_kaggle"].tolist()}
+
+
+def _append_row(out_path: Path, row: dict[str, object]) -> None:
+    """Append one scored essay's summary row, writing the header only on first write."""
+    frame = pd.DataFrame([row], columns=_ROW_COLUMNS)
+    write_header = not out_path.exists()
+    frame.to_csv(out_path, mode="a", header=write_header, index=False)
+
+
+def run_arm(
+    arm: str,
+    config: JudgeConfig,
+    sample: pd.DataFrame,
+    out_path: Path,
+    *,
+    score_essay_fn: Callable[[JudgeConfig, str, str], JudgeResult] | None = None,
+) -> ArmSummary:
+    """Score every essay in ``sample`` under one ablation arm, resumable via ``out_path``.
+
+    Essays already present in ``out_path`` are skipped (kill-safe: a rerun continues an
+    interrupted ablation without re-scoring or double-billing). The returned
+    :class:`ArmSummary` is built from the FULL ``out_path`` contents after this run, so a
+    resumed run's summary reflects all essays scored across every invocation, not just the
+    ones scored this call. ``score_essay_fn`` defaults to the real
+    ``_ellipse_judge.score_essay`` (imported lazily, same reason ``audit_ellipse_llm.py``
+    imports it lazily: keep the dry-run path importable with no endpoint configured);
+    tests inject a fake to avoid any network call.
+
+    Prints a warning for each essay whose ``fingerprint_changed`` or ``truncated`` flag is
+    set, and for any essay whose ``system_fingerprint`` is new partway through this arm's
+    run -- the same two checks ``audit_ellipse_llm.regenerate`` runs for this exact
+    judge+endpoint's documented fingerprint-drift and context-truncation risks
+    (examples/_ellipse_judge.py module docstring). A flagged essay still counts toward the
+    collapse rate; the flag is a caveat on trusting that number, not an exclusion.
+    """
+    if score_essay_fn is None:
+        from _ellipse_judge import score_essay as score_essay_fn  # type: ignore[assignment]
+
+    done = _already_scored(out_path)
+    todo = sample[~sample["text_id_kaggle"].astype(str).isin(done)]
+    run_fingerprints: set[str] = set()
+    for position, (_, essay) in enumerate(todo.iterrows(), start=1):
+        essay_id = str(essay["text_id_kaggle"])
+        result = score_essay_fn(config, essay_id, str(essay["Text"]))
+        if result.fingerprint_changed:
+            print(
+                f"[{arm} {position}/{len(todo)}] WARNING {essay_id}: system_fingerprint "
+                "changed across this essay's 7 calls -- scores are non-comparable"
+            )
+        if result.system_fingerprint is not None:
+            if run_fingerprints and result.system_fingerprint not in run_fingerprints:
+                print(
+                    f"[{arm} {position}/{len(todo)}] WARNING {essay_id}: "
+                    f"system_fingerprint {result.system_fingerprint!r} is new for this "
+                    f"run (seen so far: {sorted(run_fingerprints)}) -- treat the run as "
+                    "non-comparable"
+                )
+            run_fingerprints.add(result.system_fingerprint)
+        if result.truncated:
+            print(
+                f"[{arm} {position}/{len(todo)}] WARNING {essay_id}: prompt_tokens="
+                f"{result.prompt_tokens} looks truncated for this essay's length"
+            )
+        scored = result.scores is not None
+        _append_row(
+            out_path,
+            {
+                "text_id_kaggle": essay_id,
+                "race_ethnicity": essay["race_ethnicity"],
+                "scored": scored,
+                "collapsed": bool(scored and is_collapsed(result.scores)),  # type: ignore[arg-type]
+                "fingerprint_changed": result.fingerprint_changed,
+                "truncated": result.truncated,
+                "attempts": result.attempts,
+            },
+        )
+
+    # Every row always writes a literal True/False for "scored", "collapsed",
+    # "fingerprint_changed", and "truncated" (never an empty cell), so all four columns
+    # round-trip through pd.read_csv as clean bool dtype -- no NaN-vs-empty-string
+    # ambiguity to reason about when re-summarizing a resumed run.
+    written = pd.read_csv(out_path)
+    n_scored = int(written["scored"].sum())
+    n_collapsed = int(written["collapsed"].sum())
+    n_fingerprint_changed = int(written["fingerprint_changed"].sum())
+    n_truncated = int(written["truncated"].sum())
+    return ArmSummary(
+        arm=arm,
+        n_essays=len(sample),
+        n_scored=n_scored,
+        n_fingerprint_changed=n_fingerprint_changed,
+        n_truncated=n_truncated,
+        n_failed=len(sample) - n_scored,
+        n_collapsed=n_collapsed,
+        collapse_rate=n_collapsed / n_scored if n_scored else float("nan"),
+    )
+
+
+def format_report(summaries: Mapping[str, ArmSummary]) -> str:
+    """Human-readable comparison of both arms against the known collapse-rate baselines."""
+    lines = [
+        "Knob-attribution ablation (40-essay sample, seed 7):",
+        f"  default prompt (neither flag), from the prior ablation: "
+        f"{BASELINE_DEFAULT_COLLAPSE_RATE:.2f} (24/40)",
+        f"  both flags on, from the prior ablation:                "
+        f"{BASELINE_BOTH_FLAGS_COLLAPSE_RATE:.2f} (3/40)",
+        f"  human-rater baseline, from the prior ablation:         "
+        f"{HUMAN_COLLAPSE_RATE_RANGE[0]:.2f}-{HUMAN_COLLAPSE_RATE_RANGE[1]:.2f}",
+        "",
+    ]
+    for arm, summary in summaries.items():
+        lines.append(
+            f"  {arm}: collapse_rate={summary.collapse_rate:.2f} "
+            f"({summary.n_collapsed}/{summary.n_scored} scored, "
+            f"{summary.n_failed} failed to parse, "
+            f"{summary.n_fingerprint_changed} fingerprint-changed, "
+            f"{summary.n_truncated} truncated)"
+        )
+    return "\n".join(lines)
+
+
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="print the sample size and call count; no network, no data files",
+    )
+    parser.add_argument("--base-url", default=None, help="OpenAI-compatible base URL")
+    parser.add_argument("--model", default=None, help="model id served at --base-url")
+    parser.add_argument("--api-key", default=None, help="bearer token")
+    parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
+    parser.add_argument("--n-per-group", type=int, default=20)
+    parser.add_argument("--seed", type=int, default=7)
+    args = parser.parse_args(argv)
+
+    if args.dry_run:
+        n_calls = estimate_call_count(n_per_group=args.n_per_group)
+        print(
+            f"Dry run: {args.n_per_group * 2} essays ({args.n_per_group} focal + "
+            f"{args.n_per_group} reference), {len(ARMS)} arms, {n_calls} total API calls. "
+            "Confirm current per-token pricing for the target model/endpoint before "
+            "running live -- this repo requires explicit sign-off before any paid API call."
+        )
+        return
+
+    from audit_ellipse import load_merged
+
+    sample = select_ablation_sample(load_merged(), n_per_group=args.n_per_group, seed=args.seed)
+    summaries: dict[str, ArmSummary] = {}
+    for arm in ARMS:
+        config = judge_config_for_arm(
+            arm, base_url=args.base_url, model=args.model, api_key=args.api_key
+        )
+        out_path = args.out_dir / f"ablation_{arm}.csv"
+        summaries[arm] = run_arm(arm, config, sample, out_path)
+    print(format_report(summaries))
+
+
+if __name__ == "__main__":
+    sys.exit(main())
