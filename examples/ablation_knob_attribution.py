@@ -28,10 +28,15 @@ Two modes, same as ``audit_ellipse_llm.py``:
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pandas as pd
 from audit_ellipse import FOCAL, REFERENCE
+
+if TYPE_CHECKING:
+    from _ellipse_judge import JudgeConfig, JudgeResult
 
 HERE = Path(__file__).parent
 DEFAULT_OUT_DIR = HERE / "data"
@@ -85,3 +90,70 @@ def estimate_call_count(*, n_per_group: int, n_arms: int = 2) -> int:
     docstring: batching induces halo/anchoring).
     """
     return n_per_group * 2 * n_arms * RUBRIC_TRAIT_COUNT
+
+
+def judge_config_for_arm(
+    arm: str, *, base_url: str | None, model: str | None, api_key: str | None
+) -> JudgeConfig:
+    """Build the ``JudgeConfig`` for one ablation arm: exactly one mitigation flag on.
+
+    Raises ``ValueError`` for any ``arm`` not in :data:`ARMS` -- a typo here must fail
+    loudly, not silently score under the wrong prompt.
+    """
+    from _ellipse_judge import JudgeConfig
+
+    if arm == "reasoning_only":
+        reasoning, trait_scoped_anchors = True, False
+    elif arm == "trait_scoped_anchors_only":
+        reasoning, trait_scoped_anchors = False, True
+    else:
+        raise ValueError(f"unknown arm: {arm!r} (expected one of {ARMS})")
+    return JudgeConfig.from_env(
+        base_url=base_url,
+        model=model,
+        api_key=api_key,
+        reasoning=reasoning,
+        trait_scoped_anchors=trait_scoped_anchors,
+    )
+
+
+@dataclass(frozen=True)
+class ArmSummary:
+    """One ablation arm's collapse-rate outcome.
+
+    ``collapse_rate`` is ``n_collapsed / n_scored``, NaN when nothing scored successfully
+    (mirrors ``float("nan")`` rather than raising, since a fully-failed arm is a valid --
+    if bad -- run outcome to report, not a programming error). ``n_fingerprint_changed``
+    and ``n_truncated`` count essays flagged by ``JudgeResult.fingerprint_changed``/
+    ``.truncated`` (examples/_ellipse_judge.py's provenance fields for this judge's
+    documented fingerprint-drift and context-truncation risks), counted over ALL essays
+    regardless of parse success -- a data-quality flag matters even on a failed essay.
+    """
+
+    arm: str
+    n_essays: int
+    n_scored: int
+    n_failed: int
+    n_collapsed: int
+    collapse_rate: float
+    n_fingerprint_changed: int
+    n_truncated: int
+
+
+def summarize_arm(arm: str, results: list[JudgeResult]) -> ArmSummary:
+    """Aggregate one arm's per-essay ``JudgeResult`` list into an :class:`ArmSummary`."""
+    scored = [r for r in results if r.scores is not None]
+    failed = [r for r in results if r.scores is None]
+    n_collapsed = sum(1 for r in scored if is_collapsed(r.scores))  # type: ignore[arg-type]
+    n_scored = len(scored)
+    collapse_rate = n_collapsed / n_scored if n_scored else float("nan")
+    return ArmSummary(
+        arm=arm,
+        n_essays=len(results),
+        n_scored=n_scored,
+        n_failed=len(failed),
+        n_collapsed=n_collapsed,
+        collapse_rate=collapse_rate,
+        n_fingerprint_changed=sum(1 for r in results if r.fingerprint_changed),
+        n_truncated=sum(1 for r in results if r.truncated),
+    )
