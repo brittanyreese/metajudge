@@ -31,7 +31,8 @@ Regenerate (seed pinned below; deterministic):
 
     uv run python scripts/derive_ordinal_bands.py --out sim/results
 
-Runtime is a few minutes at the defaults. All randomness flows from BAND_SEED.
+Runtime is about 90 minutes at the default 200 replications, which is the provenance
+of the shipped constants. All randomness flows from BAND_SEED.
 """
 
 from __future__ import annotations
@@ -313,7 +314,12 @@ def _print_report(
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", default="sim/results", help="Directory for the per-point CSVs.")
-    parser.add_argument("--reps", type=int, default=400, help="Replications per (metric, b2).")
+    parser.add_argument(
+        "--reps",
+        type=int,
+        default=200,
+        help="Replications per (metric, b2). 200 is the shipped constants' provenance.",
+    )
     parser.add_argument(
         "--items-per-group",
         type=int,

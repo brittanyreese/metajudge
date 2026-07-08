@@ -12,7 +12,7 @@ Date: 2026-07-05 Status: accepted (constants updated 2026-07-05; see "Resolution
 2. Reproduce the dichotomous regime Jodoin and Gierl calibrated on (`n_categories=2`, where the shipped PO fit reduces to ordinary logistic regression) and find the `b2` where the dichotomous mean R-squared change crosses 0.035 and 0.070. Those `b2` values are the true DIF magnitudes the shipped bands encode.
 3. Read the ordinal (5-category) mean R-squared change at those same anchor `b2` values. That is the derived ordinal-PO band.
 
-Both curves use the shipped engine directly (`metajudge.dif._dif_stats`, `_fit_proportional_odds`, `_nagelkerke`) on the shared cumulative-logit DGP (`sim.dgp`), at the SummEval demo's scale (n_obs = 4,800: 800 items per stratum, 3 raters). 400 replications per (metric, `b2`) point across a 13-point grid, all converged. Nothing about the numerics is reimplemented; only the `b2` sweep and the crossing-inversion are new code.
+Both curves use the shipped engine directly (`metajudge.dif._dif_stats`, `_fit_proportional_odds`, `_nagelkerke`) on the shared cumulative-logit DGP (`sim.dgp`), at the SummEval demo's scale (n_obs = 4,800: 800 items per stratum, 3 raters). 200 replications per (metric, `b2`) point across a 13-point grid; per-replication PO fits that fail to converge are dropped (see `n_converged` in the raw draws). Nothing about the numerics is reimplemented; only the `b2` sweep and the crossing-inversion are new code.
 
 ## Result
 
@@ -20,6 +20,8 @@ Both curves use the shipped engine directly (`metajudge.dif._dif_stats`, `_fit_p
 | --- | --- | --- | --- | --- |
 | A/B | 0.807 | 2.24 | 0.035 | **0.0376** (MC SE 0.00039) |
 | B/C | 1.175 | 3.24 | 0.070 | **0.0757** (MC SE 0.00054) |
+
+The MC SE above is the within-run scatter at 200 reps; it is not the full uncertainty, because the band also drifts with the replication count (see Limits).
 
 The derived ordinal bands are 7-8% higher than the shipped dichotomous-calibrated values, not lower. That direction matters: at a fixed shipped threshold, an ordinal DIF effect needs slightly _less_ true magnitude to cross into B or C than the dichotomous calibration implies, so the shipped 0.035/0.070 read very slightly liberal (a hair too easy to trip) relative to the derived ordinal bands, not conservative.
 
@@ -42,7 +44,8 @@ One pinned test fixture's expected class did change: `test_matches_pinned_oracle
 
 - One DGP family (cumulative-logit PO, matching `sim/dgp.py`), one scale (n_obs = 4,800, 800/stratum, 3 raters), one seed. Not varied: rater count, item count, category count other than 2-vs-5, nonuniform DIF, or a degraded external conditioner.
 - The anchors are single crossing points (A/B, B/C) on a 13-point grid with linear interpolation; the grid was chosen dense near both crossings (`OR` roughly 2 and 2.7) but is not adaptively refined.
-- Runtime is a few minutes at the defaults (`--reps 400`), fully reproducible from `BAND_SEED = 20260704`.
+- The shipped constants are the `--reps 200` run (about 90 minutes), now the script default, fully reproducible from `BAND_SEED = 20260704`.
+- The derived bands have not converged in the replication count. The B/C band is 0.0757 at 200 reps and 0.0815 at 400, and the run is deterministic under `BAND_SEED`, so this is bias, not sampling scatter. The band is a nonlinear crossing-inversion of the simulated R-squared curve, and the average of that transform over a noisy curve is biased away from the noiseless value; the bias shrinks only as reps grow, which the per-estimate MC SE (0.0004) does not measure. The reps-to-infinity band is above 0.0815 and is not pinned here. This changes no reported classification: the SummEval demo clears the A/B band by more than 10x, and the one near-boundary fixture (R-squared change 0.074462) is class B under both 0.0757 and 0.0815. Tightening this band is tracked as a follow-up (a convergence check across 200/400/800 reps, with the boundary reported as an interval rather than a point).
 
 ## References
 
