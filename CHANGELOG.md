@@ -4,6 +4,26 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- Real-data DIF demonstrations on two public corpora. An ELLIPSE human-rater panel audit (`examples/audit_ellipse.py`) and a self-contained, dependency-free ELLIPSE LLM-judge path (`examples/audit_ellipse_llm.py`, `examples/_ellipse_judge.py`): the judge speaks the OpenAI `/v1/chat/completions` schema against any endpoint (local Ollama, `mlx_lm.server`, or a hosted API), with model, prompt, seed, and decoding pinned, and a committed qwen2.5:7b pilot reproduces the audit with no GPU or network. Decision record: `docs/decisions/2026-07-04-e07-ellipse-human-rater-dif.md`.
+- SummEval consistency-DIF worked example across several rubric dimensions (`examples/audit_summeval_consistency.py`), with `scripts/prep_demo.py` gaining `--field` and `--multi-dim`. Decision record: `docs/decisions/2026-07-04-e07-summeval-consistency-dif.md`.
+- Monte-Carlo derivation of the ordinal proportional-odds Jodoin-Gierl A/B/C bands (`scripts/derive_ordinal_bands.py`, raw draws in `sim/results/`), fitting cutoffs to the statistic this repo computes rather than inheriting the two-category logistic values. Decision record: `docs/decisions/2026-07-05-e07-ordinal-dif-band-derivation.md`, with a provenance test binding the shipped constants to the derivation summary.
+- Two simulated teaching examples where the audit fires rather than clears: `examples/audit_catches_bias.py` (two panels with matched reliability, where only DIF separates the biased one) and `examples/audit_conditioner_choice.py` (the external conditioner catches a panel-shared bias the rest score misses).
+- Collapse-mitigation knobs on the LLM judge (`reasoning` and `trait_scoped_anchors`, exposed as `--reasoning` / `--trait-scoped-anchors`) and a knob-attribution ablation (`examples/ablation_knob_attribution.py`). A live GPT-4o ablation attributes the score-collapse fix to the reasoning step (60% to 5% on its own, Fisher p=1.3e-7); trait-scoped anchors alone do not measurably help at this n (60% to 40%, p=0.12).
+
+### Changed
+
+- Jodoin-Gierl A/B/C thresholds moved from the two-category-calibrated 0.035/0.070 to the derived ordinal-PO 0.0376/0.0757. A score at the old boundary can shift class; no result this repo reports changes classification.
+- The ELLIPSE LLM judge scores one rubric trait per call, replacing the single all-seven-traits response that induced a within-response halo. OpenRouter runs pin the provider route and log `system_fingerprint` per call.
+
+### Fixed
+
+- `Ratings` rejects a non-numeric score at the boundary instead of failing opaquely inside a pillar.
+- `dif_class` degrades to `"?"` when the proportional-odds fit does not converge, rather than reporting a class read off a bad fit.
+- `krippendorff_alpha` and `icc` guard two silent-NaN edge cases.
+- The report card surfaces the small-N Jodoin-Gierl calibration caveat when n is below the band's calibration floor.
+
 ## [0.2.1] - 2026-07-03
 
 ### Changed
