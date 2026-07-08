@@ -2,13 +2,7 @@
 
 A reliability and DIF report card for LLM-judge and human-rater scoring instruments.
 
-[![CI](https://github.com/brittanyreese/metajudge/actions/workflows/ci.yml/badge.svg)](https://github.com/brittanyreese/metajudge/actions/workflows/ci.yml)
-[![PyPI](https://img.shields.io/pypi/v/metajudge)](https://pypi.org/project/metajudge/)
-![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)
-![Coverage](https://img.shields.io/badge/coverage-%E2%89%A595%25-brightgreen)
-![License](https://img.shields.io/badge/license-MIT-green)
-[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21162713.svg)](https://doi.org/10.5281/zenodo.21162713)
+[![CI](https://github.com/brittanyreese/metajudge/actions/workflows/ci.yml/badge.svg)](https://github.com/brittanyreese/metajudge/actions/workflows/ci.yml) [![PyPI](https://img.shields.io/pypi/v/metajudge)](https://pypi.org/project/metajudge/) ![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue) ![Coverage](https://img.shields.io/badge/coverage-%E2%89%A595%25-brightgreen) ![License](https://img.shields.io/badge/license-MIT-green) [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21162713.svg)](https://doi.org/10.5281/zenodo.21162713)
 
 An LLM judge or scoring rubric is a measurement instrument. Before you report its scores, you want to know whether the raters agree, whether they score some output types differently, and how large any gap is. `metajudge` prints a one-screen report card that answers those questions for any multi-rater ordinal panel, LLM judges or human annotators. It audits the scoring instrument, not the model under test.
 
@@ -76,11 +70,11 @@ Reliability rests on two measures, Krippendorff's alpha and ICC. Both rise when 
 
 Krippendorff's bands put the demo's 0.554 below even the tentative floor, so these coherence scores are only marginally reliable, which is the kind of result this tool exists to surface:
 
-| Krippendorff α | Reading |
-|---|---|
-| ≥ 0.80 | Reliable |
-| 0.667 to 0.80 | Tentative conclusions only |
-| < 0.667 | Marginal (the demo's 0.554 lands here) |
+| Krippendorff α | Reading                                |
+| -------------- | -------------------------------------- |
+| ≥ 0.80         | Reliable                               |
+| 0.667 to 0.80  | Tentative conclusions only             |
+| < 0.667        | Marginal (the demo's 0.554 lands here) |
 
 The reliability estimators assume a complete crossed design. On a matrix with missing cells `icc` refuses and names the estimator that does handle incomplete data, rather than returning a number it cannot defend. The reasoning is recorded as a dated ADR.
 
@@ -112,10 +106,10 @@ Judges: 3 | Items: 16 (extractive vs abstractive) | Score: coherence 1-5
 - Cluster-robust R2 delta CI: [0.000, 0.006] (n_effective=178 of 200)
 ```
 
-| Panel | Krippendorff α | ICC(2,1) | ICC(2,k) |
-|---|---|---|---|
-| Human experts (SummEval, n=1600) | 0.554 | 0.573 | 0.801 |
-| Gemini judges (n=16) | 0.993 | 0.991 | 0.997 |
+| Panel                            | Krippendorff α | ICC(2,1) | ICC(2,k) |
+| -------------------------------- | -------------- | -------- | -------- |
+| Human experts (SummEval, n=1600) | 0.554          | 0.573    | 0.801    |
+| Gemini judges (n=16)             | 0.993          | 0.991    | 0.997    |
 
 The contrast is the point: three Gemini judges agree with each other almost perfectly, while the human experts reach only 0.554, and near-perfect agreement is exactly when the reliability caveat matters most. A panel can be unanimous and still be unanimously wrong about the construct.
 
