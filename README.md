@@ -51,9 +51,7 @@ It prints the report card below, with the live numbers exactly as the command pr
 - ICC(2,1): 0.573 [95% CI 0.449, 0.664]; ICC(2,k): 0.801 [95% CI 0.710, 0.856] (1600 targets x 3 raters)
 
 ## DIF (panel-relative, rest-score conditioner)
-> Note: strata nest items (each item is in one stratum), so this matches quality between nested item sets, not within shared items. If the strata differ in quality, the conditioner correlates with the group and residual confounding (DIF impurity) remains; read the effect size as screening evidence, not a confound-free fairness verdict.
-
-> Note: the rest-score conditioner cannot see bias shared across the entire rater panel, so this is panel-relative DIF, not an instrument-level fairness clearance. Pass a valid independent external quality conditioner for a stronger instrument-level analysis.
+> Note: two limits bound this read. Strata nest items (each item sits in one stratum), so the conditioner matches quality between nested item sets, not within shared items; if the strata differ in quality it correlates with the group and residual confounding (DIF impurity) remains. Separately, the rest-score conditioner cannot see bias the whole rater panel shares. Pass a valid, independent external quality conditioner for a stronger, instrument-level analysis; without one, read the effect size as panel-relative screening evidence, not an instrument-level fairness clearance.
 
 - abstractive vs extractive (conditioner: rest_score, n=4800)
 - Effect size (Nagelkerke R2 delta): 0.002 (Jodoin-Gierl class A)
@@ -84,6 +82,8 @@ DIF, differential item functioning, asks whether the panel scores abstractive ou
 
 The matching variable is a leave-one-rater-out rest score across the three expert raters, which uses the same exchangeable-rater assumption as the reliability pillar. That rest score detects bias relative to the rater panel and understates bias the whole panel shares, so the card labels this path panel-relative DIF. For a stronger DIF analysis, pass an explicit external quality conditioner: `audit(ratings, focal=..., reference=..., conditioner=...)` accepts a sample-id to quality-score mapping. External-conditioner DIF supports instrument-level interpretation only when the conditioner is valid, independent, and appropriate for the quality construct being matched. Read DIF output as a screening audit, not a confirmatory significance claim. When a p-value lands near a decision threshold, `cluster_bootstrap_dif` runs the same engine with item-block resampling and returns a 95% cluster-robust interval alongside the unchanged point estimate.
 
+Two simulated examples (no API calls) show this in miniature. [`examples/audit_catches_bias.py`](https://github.com/brittanyreese/metajudge/blob/main/examples/audit_catches_bias.py) builds two judge panels with near-identical reliability where only DIF separates them, class C against class A: high agreement is not fairness. [`examples/audit_conditioner_choice.py`](https://github.com/brittanyreese/metajudge/blob/main/examples/audit_conditioner_choice.py) audits the same biased panel under both conditioners, and the rest score misses the bias the external conditioner catches.
+
 ## Audit your own judge
 
 To audit a real instrument, point metajudge at the output of an existing judge runner. `Ratings.from_eval_instruments` maps the per-judge score frames produced by Epic's [`evaluation-instruments`](https://github.com/epic-open-source/evaluation-instruments) (`frame_from_evals`) into the `Ratings` the audit consumes: rater is judge, item is sample, score is one rubric criterion. It is a local DataFrame transform that adds no dependency. A runnable, no-PHI walkthrough is in [docs/interop-epic.md](https://github.com/brittanyreese/metajudge/blob/main/docs/interop-epic.md).
@@ -111,7 +111,7 @@ Judges: 3 | Items: 16 (extractive vs abstractive) | Score: coherence 1-5
 | Human experts (SummEval, n=1600) | 0.554          | 0.573    | 0.801    |
 | Gemini judges (n=16)             | 0.993          | 0.991    | 0.997    |
 
-The contrast is the point: three Gemini judges agree with each other almost perfectly, while the human experts reach only 0.554, and near-perfect agreement is exactly when the reliability caveat matters most. A panel can be unanimous and still be unanimously wrong about the construct.
+Three Gemini judges agree almost perfectly, while the human experts reach only 0.554. Their agreement measures consistency, not correctness: a panel can agree completely and still be wrong about the construct.
 
 ## Cluster-robust DIF confidence intervals
 
