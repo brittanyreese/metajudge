@@ -187,7 +187,30 @@ The per-trait fix above removed the within-response halo but not the collapse. A
 
 **Shipped.** The two knobs live on `build_messages` and `JudgeConfig` (`reasoning`, `trait_scoped_anchors`), both defaulting off so the committed qwen2.5:7b pilot CSV reproduces byte-for-byte, and are exposed on the regenerate CLI as `--reasoning` / `--trait-scoped-anchors`. `tests/test_ellipse_judge_scorer.py` pins the default path unchanged, the trait-scoped anchors naming the trait and differing across traits, the reasoning field preceding the score, and the parser ignoring the extra key; `tests/test_audit_ellipse_llm_cli.py` pins that the CLI flags reach the config.
 
-**One question left open, deliberately.** The ablation changed both knobs at once, so it confirms the combined fix drops collapse to human-in-band levels but does not attribute how much each knob contributes. A one-knob-at-a-time ablation would isolate that; it is cheap but not needed to ship the fix, and is not blocking. With the collapse resolved, the reported-run and full-corpus GPT-4o spend (using the flags) is unblocked on this question; it remains gated only on the ~7x-token budget sign-off noted above.
+**One question left open, deliberately.** The ablation changed both knobs at once, so it confirms the combined fix drops collapse to human-in-band levels but does not attribute how much each knob contributes. A one-knob-at-a-time ablation would isolate that; it is cheap but not needed to ship the fix, and is not blocking. With the collapse resolved, the reported-run and full-corpus GPT-4o spend (using the flags) is unblocked on this question; it remains gated only on the ~7x-token budget sign-off noted above. (Answered 2026-07-08; see the next section.)
+
+## Knob attribution: requiring a justification before the score carries the fix (2026-07-08, live)
+
+The question above is answered, with one caveat named below. A single-knob ablation ran each knob alone on the same 40 essays (20 focal + 20 reference, seed 7) and the same `openai/gpt-4o` route with the provider pin (`examples/ablation_knob_attribution.py`; raw scores in `examples/data/ablation_reasoning_only.csv` and `ablation_trait_scoped_anchors_only.csv`).
+
+| Arm | Collapse rate | Wilson 95% CI |
+| --- | --- | --- |
+| Default, neither knob (2026-07-05 paired run) | 24/40 (60%) | [45, 74]% |
+| Trait-scoped anchors only | 16/40 (40%) | [26, 55]% |
+| Reasoning only | 2/40 (5%) | [1, 17]% |
+| Both knobs (2026-07-05 paired run) | 3/40 (8%) | [3, 20]% |
+| Human-rater baseline (2026-07-05 paired run) | 12-14% | n/a |
+
+The reasoning knob does almost all the work. Requiring a one-sentence justification before the integer, with nothing else changed, drops collapse from 60% to 5% (2/40); the gap is large and significant against both the 60% default (Fisher exact p = 1.3e-7) and the 40% anchors-only arm (p = 3e-4). Trait-scoped anchors alone reach 40% (16/40), which is not distinguishable from the 60% default at this n (Fisher p = 0.12), so any anchor-only contribution is within noise here.
+
+Two limits bound how far to read this.
+
+- The reasoning arm confounds content with output order. It requires free text before the integer, so it shows that emitting text before the score breaks the collapse, but it cannot separate genuine per-trait reasoning from any buffer that defeats immediate anchoring. A placeholder-text control would isolate that and is not yet run. The honest mechanism is "commit the integer last, not first," not "the model reasons."
+- The rates are single-run point estimates at n = 40 with wide intervals. Reasoning-only [1, 17]% overlaps both-knobs [3, 20]% and the 12-14% human band, so reasoning-only is indistinguishable from both-knobs and from the human raters (2 vs 3 collapses, Fisher p = 1.0), not below them. The 60% and 8% endpoints are the 2026-07-05 paired run, not re-run beside the single-knob arms, so the comparison assumes the route behaved the same across the two dates. `system_fingerprint` rotated on all seven per-trait calls of every essay in both arms; OpenRouter hides the serving provider, so a benign replica rotation cannot be told from a backend switch client-side. It is balanced across the two arms, so it does not explain the reasoning-versus-anchors gap, but it is an open caveat on the absolute rates.
+
+This refines the root cause named above. The two candidates were the shared holistic anchors and the bare integer that commits a score with no room to reason first. The data puts the second first: the collapse tracks the model committing an integer before it differentiates the trait, and the anchor change alone does not measurably move it. The earlier reading named the shared anchors as the second halo channel; on this evidence the output-order channel leads and the anchor channel is not separable from noise.
+
+Both knobs are recommended on for a GPT-4o-class judge, and both still default off in code so the committed qwen2.5:7b pilot reproduces byte for byte. The one-line rule for a practitioner: make the judge emit its per-trait justification before the integer, not after.
 
 ## References
 
