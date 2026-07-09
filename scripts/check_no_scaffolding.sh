@@ -4,8 +4,8 @@
 # gitignored CLAUDE.md.
 #
 # Design: allowlist-first, fail-safe. Agent/assistant scaffolding always lands
-# as NEW top-level directories (.claude, .memsearch, .superpowers, .serena,
-# .hypothesis, ...). A denylist only blocks the tools we already know about; a
+# as NEW top-level directories. A denylist only blocks the tools we already
+# know about; a
 # top-level allowlist blocks every newly-added top-level entry by default,
 # including tools that do not exist yet. New nested files under an approved
 # root (src/, tests/, docs/, ...) flow through freely. Secrets, which can be
@@ -59,8 +59,8 @@ secret_patterns=(
 )
 
 # Private subtrees nested under an otherwise-allowed top-level root. The
-# top-level allowlist permits docs/, but docs/superpowers/ holds private build
-# plans whose sanitized public mirror is docs/roadmap.md.
+# top-level allowlist permits docs/, but a private build-plan subtree under it
+# is denied; its sanitized public mirror is docs/roadmap.md.
 nested_deny_patterns=(
   '^docs/superpowers/'
 )

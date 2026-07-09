@@ -156,7 +156,7 @@ DEFAULT_OPENROUTER_PROVIDER: Mapping[str, object] = {
     "require_parameters": True,
 }
 
-# ponytail: crude chars-per-token heuristic (no tokenizer dependency); revisit if it
+# Crude chars-per-token heuristic (no tokenizer dependency); revisit if it
 # false-positives on a real judge's usage.prompt_tokens.
 _CHARS_PER_TOKEN_ESTIMATE = 4
 
