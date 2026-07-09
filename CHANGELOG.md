@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-08
+
 ### Added
 
 - Real-data DIF demonstrations on two public corpora. An ELLIPSE human-rater panel audit (`examples/audit_ellipse.py`) and a self-contained, dependency-free ELLIPSE LLM-judge path (`examples/audit_ellipse_llm.py`, `examples/_ellipse_judge.py`): the judge speaks the OpenAI `/v1/chat/completions` schema against any endpoint (local Ollama, `mlx_lm.server`, or a hosted API), with model, prompt, seed, and decoding pinned, and a committed qwen2.5:7b pilot reproduces the audit with no GPU or network. Decision record: `docs/decisions/2026-07-04-e07-ellipse-human-rater-dif.md`.
@@ -87,7 +89,8 @@ First public release: the E07 two-pillar report card. A pip-installable layer th
 
 - Every statistic is pinned to an external reference: Krippendorff's alpha against the `krippendorff` package, ICC against the Shrout-Fleiss worked example and `pingouin`, and DIF against R `MASS::polr` with a `statsmodels` cross-check in the two-category limit. `pingouin` and `statsmodels` are test oracles only, never runtime imports.
 
-[Unreleased]: https://github.com/brittanyreese/metajudge/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/brittanyreese/metajudge/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/brittanyreese/metajudge/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/brittanyreese/metajudge/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/brittanyreese/metajudge/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/brittanyreese/metajudge/releases/tag/v0.1.0
