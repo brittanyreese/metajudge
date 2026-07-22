@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Pre-commit guard: keep the public, peer-review-facing history clean.
-# The shareable context is AGENTS.md; private machine context stays in the
-# gitignored CLAUDE.md.
+# Shareable project conventions live in AGENTS.md; machine-local tool
+# context stays gitignored.
 #
-# Design: allowlist-first, fail-safe. Agent/assistant scaffolding always lands
+# Design: allowlist-first, fail-safe. Local tooling scaffolding always lands
 # as NEW top-level directories. A denylist only blocks the tools we already
 # know about; a
 # top-level allowlist blocks every newly-added top-level entry by default,
