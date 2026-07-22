@@ -22,3 +22,11 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run pyright
       - run: uv run pytest
+      - name: Upload coverage to Codecov
+        # One matrix leg only -- otherwise three uploads for the same commit
+        # confuse the Codecov UI. continue-on-error: the upload needs
+        # CODECOV_TOKEN (see repo secrets); until it's set this step fails
+        # without reddening the job.
+        if: matrix.python-version == '3.12'
+        continue-on-error: true
+        run: uvx codecov-cli upload-process -t ${{ secrets.CODECOV_TOKEN }}

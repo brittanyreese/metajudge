@@ -95,7 +95,7 @@ typeCheckingMode = "strict"
 pythonVersion = "3.11"
 
 [tool.pytest.ini_options]
-addopts = "-q --cov=metajudge --cov-report=term-missing --cov-fail-under=95"
+addopts = "-q --cov=metajudge --cov-report=term-missing --cov-report=xml --cov-fail-under=95"
 testpaths = ["tests"]
 pythonpath = ["."]
 markers = ["slow: mark a test as slow; skipped by default, run with --run-slow"]
